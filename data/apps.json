@@ -1,0 +1,28 @@
+[
+  {
+    "id": "app_support",
+    "name": "Support Copilot",
+    "description": "客服 FAQ 问答助手",
+    "metadata": {
+      "owner": "CX Team",
+      "channels": [
+        "web",
+        "mobile"
+      ]
+    },
+    "createdAt": "2025-01-18T08:00:00.000Z",
+    "updatedAt": "2025-01-18T08:00:00.000Z"
+  },
+  {
+    "id": "app_sales",
+    "name": "Sales Assistant",
+    "description": "售前解答与报价助手",
+    "metadata": {
+      "owner": "Growth Team",
+      "market": "APAC"
+    },
+    "createdAt": "2025-01-18T09:30:00.000Z",
+    "updatedAt": "2025-01-18T09:30:00.000Z"
+  }
+]
+

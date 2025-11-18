@@ -1,0 +1,39 @@
+{
+  "name": "cirl",
+  "version": "1.0.0",
+  "description": "CIRL - 核心迭代知识库管理系统（Core Iterative Knowledge Base with Feedback & Low Cost）",
+  "main": "server/index.js",
+  "bin": {
+    "cirl": "./bin/cli.js"
+  },
+  "files": [
+    "dist",
+    "server",
+    "bin",
+    "README.md"
+  ],
+  "scripts": {
+    "build:web": "cd web && npm run build",
+    "build:copy": "rm -rf dist && cp -r web/dist dist",
+    "build": "npm run build:web && npm run build:copy",
+    "dev": "cd web && npm run dev",
+    "dev:server": "node server/index.js",
+    "prepack": "npm run build",
+    "pack": "npm pack",
+    "install:local": "npm run build && npm pack && npm install -g cirl-$(node -p \"require('./package.json').version\").tgz && rm -f cirl-*.tgz"
+  },
+  "keywords": ["knowledge-base", "knowledge-management", "feedback", "api"],
+  "author": "",
+  "license": "MIT",
+  "dependencies": {
+    "express": "^4.18.2",
+    "cors": "^2.8.5"
+  },
+  "engines": {
+    "node": ">=20.0.0"
+  },
+  "publishConfig": {
+    "access": "public"
+  }
+}
+

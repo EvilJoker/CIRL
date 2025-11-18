@@ -1,0 +1,29 @@
+[
+  {
+    "id": "ds_support_faq",
+    "appId": "app_support",
+    "name": "支持常见问题",
+    "description": "客服 FAQ 标准问答集合",
+    "queryRecordIds": [
+      "qr_1001",
+      "qr_1002",
+      "qr_2002",
+      "qr_2001"
+    ],
+    "metadata": {},
+    "createdAt": "2025-01-19T06:00:00.000Z",
+    "updatedAt": "2025-11-20T12:17:54.970Z"
+  },
+  {
+    "id": "ds_sales_pitch",
+    "appId": "app_sales",
+    "name": "售前问答集",
+    "description": "高频销售问题标准答案",
+    "queryRecordIds": [
+      "qr_2001"
+    ],
+    "metadata": {},
+    "createdAt": "2025-01-19T06:30:00.000Z",
+    "updatedAt": "2025-11-20T12:17:33.925Z"
+  }
+]

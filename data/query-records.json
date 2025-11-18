@@ -1,0 +1,98 @@
+[
+  {
+    "id": "qr_1001",
+    "appId": "app_support",
+    "input": "如何重置密码？",
+    "output": "请打开设置 > 安全 > 密码，按照向导完成重置。",
+    "modelId": "gpt-4o-mini",
+    "context": {
+      "channel": "web"
+    },
+    "curated": true,
+    "tags": [
+      "账户",
+      "安全"
+    ],
+    "ignored": false,
+    "metadata": {
+      "responseTime": 820,
+      "lastAnalyzedAt": "2025-01-20T01:00:00.000Z",
+      "lastMatchType": "exact",
+      "lastSimilarity": 100
+    },
+    "createdAt": "2025-01-19T02:05:00.000Z",
+    "updatedAt": "2025-01-19T02:05:00.000Z"
+  },
+  {
+    "id": "qr_1002",
+    "appId": "app_support",
+    "input": "企业套餐如何升级？",
+    "output": "请联系客户成功团队，我们会发送升级订单。",
+    "modelId": "gpt-4o-mini",
+    "context": {
+      "channel": "web"
+    },
+    "curated": false,
+    "tags": [
+      "计费",
+      "套餐"
+    ],
+    "ignored": false,
+    "metadata": {
+      "responseTime": 910,
+      "lastAnalyzedAt": "2025-01-20T01:00:30.000Z",
+      "lastMatchType": "high",
+      "lastSimilarity": 84
+    },
+    "createdAt": "2025-01-19T03:20:00.000Z",
+    "updatedAt": "2025-01-19T03:20:00.000Z"
+  },
+  {
+    "id": "qr_2001",
+    "appId": "app_sales",
+    "input": "有没有季度优惠？",
+    "output": "当前季度订阅折扣为 10%，满一年可额外享受 5%。",
+    "modelId": "gpt-4.1",
+    "context": {
+      "region": "APAC"
+    },
+    "curated": true,
+    "tags": [
+      "折扣",
+      "定价"
+    ],
+    "ignored": false,
+    "metadata": {
+      "responseTime": 760,
+      "lastAnalyzedAt": "2025-01-20T01:01:00.000Z",
+      "lastMatchType": "exact",
+      "lastSimilarity": 100
+    },
+    "createdAt": "2025-01-19T10:00:00.000Z",
+    "updatedAt": "2025-11-21T06:07:06.759Z"
+  },
+  {
+    "id": "qr_2002",
+    "appId": "app_sales",
+    "input": "PO 流程通常需要多久？",
+    "output": "标准流程需要 2-3 个工作日，可提供加急流程。",
+    "modelId": "gpt-4.1",
+    "context": {
+      "region": "EU"
+    },
+    "curated": true,
+    "tags": [
+      "流程",
+      "采购"
+    ],
+    "ignored": false,
+    "metadata": {
+      "responseTime": 640,
+      "lastAnalyzedAt": "2025-01-20T01:01:30.000Z",
+      "lastMatchType": "medium",
+      "lastSimilarity": 72
+    },
+    "createdAt": "2025-01-19T11:45:00.000Z",
+    "updatedAt": "2025-11-21T06:07:08.323Z"
+  }
+]

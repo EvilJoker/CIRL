@@ -1,0 +1,49 @@
+[
+  {
+    "id": "ev_support_before",
+    "appId": "app_support",
+    "datasetId": "ds_support_faq",
+    "evaluationType": "before",
+    "metrics": {
+      "accuracy": 78.5,
+      "speed": 910,
+      "exactHitRate": 30,
+      "highHitRate": 40,
+      "mediumHitRate": 15,
+      "noHitRate": 15,
+      "avgRating": 3.1,
+      "feedbackCount": 12
+    },
+    "queryRecordIds": [
+      "qr_1001",
+      "qr_1002"
+    ],
+    "evaluatedAt": "2025-01-15T00:00:00.000Z",
+    "createdAt": "2025-01-15T00:00:00.000Z",
+    "updatedAt": "2025-01-15T00:00:00.000Z"
+  },
+  {
+    "id": "ev_support_after",
+    "appId": "app_support",
+    "datasetId": "ds_support_faq",
+    "evaluationType": "after",
+    "metrics": {
+      "accuracy": 89.2,
+      "speed": 820,
+      "exactHitRate": 42,
+      "highHitRate": 38,
+      "mediumHitRate": 15,
+      "noHitRate": 5,
+      "avgRating": 4.2,
+      "feedbackCount": 9
+    },
+    "queryRecordIds": [
+      "qr_1001",
+      "qr_1002"
+    ],
+    "evaluatedAt": "2025-01-20T00:00:00.000Z",
+    "createdAt": "2025-01-20T00:00:00.000Z",
+    "updatedAt": "2025-01-20T00:00:00.000Z"
+  }
+]
+

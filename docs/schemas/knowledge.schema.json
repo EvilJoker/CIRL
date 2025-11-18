@@ -1,0 +1,52 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "Knowledge Item Schema",
+  "type": "object",
+  "required": ["id", "title", "content", "category", "layer", "stability", "createdAt", "updatedAt"],
+  "properties": {
+    "id": {
+      "type": "string",
+      "description": "知识项唯一标识"
+    },
+    "title": {
+      "type": "string",
+      "description": "知识标题"
+    },
+    "content": {
+      "type": "string",
+      "description": "知识内容"
+    },
+    "category": {
+      "type": "string",
+      "description": "知识类别ID"
+    },
+    "layer": {
+      "type": "string",
+      "enum": ["core", "non-core"],
+      "description": "知识层级：核心或非核心"
+    },
+    "stability": {
+      "type": "string",
+      "enum": ["stable", "volatile"],
+      "description": "稳定性：稳定或易变"
+    },
+    "tags": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      },
+      "description": "标签列表"
+    },
+    "createdAt": {
+      "type": "string",
+      "format": "date-time",
+      "description": "创建时间"
+    },
+    "updatedAt": {
+      "type": "string",
+      "format": "date-time",
+      "description": "更新时间"
+    }
+  }
+}
+

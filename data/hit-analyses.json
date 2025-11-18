@@ -1,0 +1,38 @@
+[
+  {
+    "id": "ha_support_1",
+    "queryRecordId": "qr_1001",
+    "datasetId": "ds_support_faq",
+    "matchType": "exact",
+    "similarity": 100,
+    "matchedQueryRecordId": "qr_1001",
+    "createdAt": "2025-01-20T01:00:00.000Z"
+  },
+  {
+    "id": "ha_support_2",
+    "queryRecordId": "qr_1002",
+    "datasetId": "ds_support_faq",
+    "matchType": "high",
+    "similarity": 84,
+    "matchedQueryRecordId": "qr_1001",
+    "createdAt": "2025-01-20T01:00:30.000Z"
+  },
+  {
+    "id": "ha_sales_1",
+    "queryRecordId": "qr_2001",
+    "datasetId": "ds_sales_pitch",
+    "matchType": "exact",
+    "similarity": 100,
+    "matchedQueryRecordId": "qr_2001",
+    "createdAt": "2025-01-20T01:01:00.000Z"
+  },
+  {
+    "id": "ha_sales_2",
+    "queryRecordId": "qr_2002",
+    "datasetId": "ds_sales_pitch",
+    "matchType": "medium",
+    "similarity": 72,
+    "matchedQueryRecordId": "qr_2001",
+    "createdAt": "2025-01-20T01:01:30.000Z"
+  }
+]

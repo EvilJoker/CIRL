@@ -1,0 +1,37 @@
+[
+  {
+    "id": "fb_5001",
+    "queryRecordId": "qr_1001",
+    "type": "positive",
+    "content": "回答准确，步骤清晰。",
+    "rating": 5,
+    "status": "processed",
+    "optimizationSuggestion": "保持当前指引，增加截图即可。",
+    "processedAt": "2025-01-19T06:00:00.000Z",
+    "createdAt": "2025-01-19T05:00:00.000Z",
+    "updatedAt": "2025-01-19T06:00:00.000Z"
+  },
+  {
+    "id": "fb_5002",
+    "queryRecordId": "qr_1002",
+    "type": "negative",
+    "content": "缺少升级后的价格细节。",
+    "rating": 2,
+    "status": "pending",
+    "createdAt": "2025-01-19T05:30:00.000Z",
+    "updatedAt": "2025-01-19T05:30:00.000Z"
+  },
+  {
+    "id": "fb_6001",
+    "queryRecordId": "qr_2002",
+    "type": "neutral",
+    "content": "希望能看到审批流程图。",
+    "rating": 3,
+    "status": "processed",
+    "optimizationSuggestion": "链接到流程图，并说明 SLA。",
+    "processedAt": "2025-01-19T13:20:00.000Z",
+    "createdAt": "2025-01-19T12:20:00.000Z",
+    "updatedAt": "2025-01-19T13:20:00.000Z"
+  }
+]
+
