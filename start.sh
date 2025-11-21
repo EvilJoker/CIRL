@@ -10,9 +10,15 @@ if ! command -v node &> /dev/null; then
     exit 1
 fi
 
-# 检查依赖
-if [ ! -d "node_modules" ]; then
+# 检查并安装依赖
+if [ ! -d "node_modules" ] || [ ! -f "node_modules/.package-lock.json" ]; then
     echo "📦 安装根目录依赖..."
+    npm install || exit 1
+fi
+
+# 检查关键依赖是否存在
+if [ ! -d "node_modules/swagger-jsdoc" ] || [ ! -d "node_modules/swagger-ui-express" ]; then
+    echo "📦 安装缺失的依赖..."
     npm install || exit 1
 fi
 

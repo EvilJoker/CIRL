@@ -1,5 +1,6 @@
 import express from 'express'
 import cors from 'cors'
+import swaggerUi from 'swagger-ui-express'
 import { fileURLToPath } from 'url'
 import { dirname, join } from 'path'
 import {
@@ -20,6 +21,7 @@ import {
 } from './dataManager.js'
 import { calculateSimilarity, getMatchType } from './similarityService.js'
 import { calculateEvaluationMetrics } from './evaluationService.js'
+import { swaggerSpec } from './swagger.js'
 
 const __filename = fileURLToPath(import.meta.url)
 const __dirname = dirname(__filename)
@@ -29,6 +31,12 @@ const PORT = process.env.PORT || 3001
 
 app.use(cors())
 app.use(express.json())
+
+// Swagger UI
+app.use('/api-docs', swaggerUi.serve, swaggerUi.setup(swaggerSpec, {
+  customCss: '.swagger-ui .topbar { display: none }',
+  customSiteTitle: 'CIRL API 文档'
+}))
 
 // 静态文件服务（前端构建产物）
 app.use(express.static(join(__dirname, '..', 'dist')))
@@ -116,7 +124,22 @@ async function performHitAnalysisTask({ appId, datasetId, startDate, endDate, mo
 
 // ========== 应用（App）管理 API ==========
 
-// 获取所有应用
+/**
+ * @swagger
+ * /api/apps:
+ *   get:
+ *     summary: 获取所有应用
+ *     tags: [Apps]
+ *     responses:
+ *       200:
+ *         description: 应用列表
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: array
+ *               items:
+ *                 $ref: '#/components/schemas/App'
+ */
 app.get('/api/apps', async (req, res) => {
   try {
     const apps = await readApps()
@@ -126,7 +149,33 @@ app.get('/api/apps', async (req, res) => {
   }
 })
 
-// 获取单个应用
+/**
+ * @swagger
+ * /api/apps/{id}:
+ *   get:
+ *     summary: 获取单个应用
+ *     tags: [Apps]
+ *     parameters:
+ *       - in: path
+ *         name: id
+ *         required: true
+ *         schema:
+ *           type: string
+ *         description: 应用ID
+ *     responses:
+ *       200:
+ *         description: 应用详情
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/App'
+ *       404:
+ *         description: 应用不存在
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/Error'
+ */
 app.get('/api/apps/:id', async (req, res) => {
   try {
     const apps = await readApps()
@@ -140,7 +189,40 @@ app.get('/api/apps/:id', async (req, res) => {
   }
 })
 
-// 创建应用
+/**
+ * @swagger
+ * /api/apps:
+ *   post:
+ *     summary: 创建应用
+ *     tags: [Apps]
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             required:
+ *               - name
+ *             properties:
+ *               name:
+ *                 type: string
+ *                 example: Support Copilot
+ *               description:
+ *                 type: string
+ *                 example: 客服 FAQ 问答助手
+ *               metadata:
+ *                 type: object
+ *                 additionalProperties: true
+ *     responses:
+ *       200:
+ *         description: 创建成功
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/App'
+ *       400:
+ *         description: 请求参数错误
+ */
 app.post('/api/apps', async (req, res) => {
   try {
     const apps = await readApps()
@@ -160,7 +242,41 @@ app.post('/api/apps', async (req, res) => {
   }
 })
 
-// 更新应用
+/**
+ * @swagger
+ * /api/apps/{id}:
+ *   put:
+ *     summary: 更新应用
+ *     tags: [Apps]
+ *     parameters:
+ *       - in: path
+ *         name: id
+ *         required: true
+ *         schema:
+ *           type: string
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             properties:
+ *               name:
+ *                 type: string
+ *               description:
+ *                 type: string
+ *               metadata:
+ *                 type: object
+ *     responses:
+ *       200:
+ *         description: 更新成功
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/App'
+ *       404:
+ *         description: 应用不存在
+ */
 app.put('/api/apps/:id', async (req, res) => {
   try {
     const apps = await readApps()
@@ -181,7 +297,31 @@ app.put('/api/apps/:id', async (req, res) => {
   }
 })
 
-// 删除应用
+/**
+ * @swagger
+ * /api/apps/{id}:
+ *   delete:
+ *     summary: 删除应用
+ *     tags: [Apps]
+ *     parameters:
+ *       - in: path
+ *         name: id
+ *         required: true
+ *         schema:
+ *           type: string
+ *     responses:
+ *       200:
+ *         description: 删除成功
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 success:
+ *                   type: boolean
+ *       404:
+ *         description: 应用不存在
+ */
 app.delete('/api/apps/:id', async (req, res) => {
   try {
     const apps = await readApps()
@@ -195,7 +335,60 @@ app.delete('/api/apps/:id', async (req, res) => {
 
 // ========== 问答记录（QueryRecord）API ==========
 
-// 获取问答记录列表
+/**
+ * @swagger
+ * /api/query-records:
+ *   get:
+ *     summary: 获取问答记录列表
+ *     tags: [QueryRecords]
+ *     parameters:
+ *       - in: query
+ *         name: appId
+ *         schema:
+ *           type: string
+ *         description: 应用ID筛选
+ *       - in: query
+ *         name: startDate
+ *         schema:
+ *           type: string
+ *           format: date
+ *         description: 开始日期（ISO 格式）
+ *       - in: query
+ *         name: endDate
+ *         schema:
+ *           type: string
+ *           format: date
+ *         description: 结束日期（ISO 格式）
+ *       - in: query
+ *         name: curated
+ *         schema:
+ *           type: boolean
+ *         description: 是否已精选
+ *       - in: query
+ *         name: ignored
+ *         schema:
+ *           type: boolean
+ *         description: 是否已忽略
+ *       - in: query
+ *         name: page
+ *         schema:
+ *           type: integer
+ *           default: 1
+ *         description: 页码
+ *       - in: query
+ *         name: pageSize
+ *         schema:
+ *           type: integer
+ *           default: 20
+ *         description: 每页大小
+ *     responses:
+ *       200:
+ *         description: 问答记录列表（分页）
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/PaginatedResponse'
+ */
 app.get('/api/query-records', async (req, res) => {
   try {
     const { appId, startDate, endDate, curated, ignored, page = 1, pageSize = 20 } = req.query
@@ -239,7 +432,28 @@ app.get('/api/query-records', async (req, res) => {
   }
 })
 
-// 获取单个问答记录
+/**
+ * @swagger
+ * /api/query-records/{id}:
+ *   get:
+ *     summary: 获取单个问答记录
+ *     tags: [QueryRecords]
+ *     parameters:
+ *       - in: path
+ *         name: id
+ *         required: true
+ *         schema:
+ *           type: string
+ *     responses:
+ *       200:
+ *         description: 问答记录详情
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/QueryRecord'
+ *       404:
+ *         description: 记录不存在
+ */
 app.get('/api/query-records/:id', async (req, res) => {
   try {
     const records = await readQueryRecords()
@@ -253,7 +467,63 @@ app.get('/api/query-records/:id', async (req, res) => {
   }
 })
 
-// 创建问答记录
+/**
+ * @swagger
+ * /api/query-records:
+ *   post:
+ *     summary: 创建问答记录
+ *     description: 外部系统调用此接口记录问答日志
+ *     tags: [QueryRecords]
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             required:
+ *               - appId
+ *               - input
+ *               - output
+ *             properties:
+ *               appId:
+ *                 type: string
+ *                 example: app_1234567890
+ *               input:
+ *                 type: string
+ *                 example: 如何重置密码？
+ *               output:
+ *                 type: string
+ *                 example: 请打开设置 > 安全 > 密码，按照向导完成重置。
+ *               modelId:
+ *                 type: string
+ *                 example: gpt-4o-mini
+ *               context:
+ *                 type: object
+ *                 additionalProperties: true
+ *               metadata:
+ *                 type: object
+ *                 properties:
+ *                   responseTime:
+ *                     type: number
+ *                     description: 响应时间（毫秒）
+ *                 additionalProperties: true
+ *               curated:
+ *                 type: boolean
+ *                 default: false
+ *               tags:
+ *                 type: array
+ *                 items:
+ *                   type: string
+ *     responses:
+ *       200:
+ *         description: 创建成功
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/QueryRecord'
+ *       400:
+ *         description: 请求参数错误
+ */
 app.post('/api/query-records', async (req, res) => {
   try {
     const { appId, input, output, modelId, context, metadata } = req.body
@@ -282,7 +552,47 @@ app.post('/api/query-records', async (req, res) => {
   }
 })
 
-// 更新问答记录
+/**
+ * @swagger
+ * /api/query-records/{id}:
+ *   put:
+ *     summary: 更新问答记录
+ *     tags: [QueryRecords]
+ *     parameters:
+ *       - in: path
+ *         name: id
+ *         required: true
+ *         schema:
+ *           type: string
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             properties:
+ *               input:
+ *                 type: string
+ *               output:
+ *                 type: string
+ *               curated:
+ *                 type: boolean
+ *               ignored:
+ *                 type: boolean
+ *               tags:
+ *                 type: array
+ *                 items:
+ *                   type: string
+ *     responses:
+ *       200:
+ *         description: 更新成功
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/QueryRecord'
+ *       404:
+ *         description: 记录不存在
+ */
 app.put('/api/query-records/:id', async (req, res) => {
   try {
     const records = await readQueryRecords()
@@ -305,7 +615,39 @@ app.put('/api/query-records/:id', async (req, res) => {
 
 // ========== 反馈（Feedback）API ==========
 
-// 获取反馈列表
+/**
+ * @swagger
+ * /api/feedbacks:
+ *   get:
+ *     summary: 获取反馈列表
+ *     tags: [Feedbacks]
+ *     parameters:
+ *       - in: query
+ *         name: status
+ *         schema:
+ *           type: string
+ *           enum: [pending, processed, resolved]
+ *         description: 反馈状态筛选
+ *       - in: query
+ *         name: appId
+ *         schema:
+ *           type: string
+ *         description: 应用ID筛选
+ *       - in: query
+ *         name: queryRecordId
+ *         schema:
+ *           type: string
+ *         description: 问答记录ID筛选
+ *     responses:
+ *       200:
+ *         description: 反馈列表
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: array
+ *               items:
+ *                 $ref: '#/components/schemas/Feedback'
+ */
 app.get('/api/feedbacks', async (req, res) => {
   try {
     const { status, appId, queryRecordId } = req.query
@@ -329,7 +671,50 @@ app.get('/api/feedbacks', async (req, res) => {
   }
 })
 
-// 创建反馈
+/**
+ * @swagger
+ * /api/feedbacks:
+ *   post:
+ *     summary: 创建反馈
+ *     tags: [Feedbacks]
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             required:
+ *               - queryRecordId
+ *               - type
+ *             properties:
+ *               queryRecordId:
+ *                 type: string
+ *                 example: qr_1234567890
+ *               type:
+ *                 type: string
+ *                 enum: [positive, negative, neutral, correction]
+ *                 example: negative
+ *               content:
+ *                 type: string
+ *                 example: 答案不够具体
+ *               rating:
+ *                 type: integer
+ *                 minimum: 1
+ *                 maximum: 5
+ *                 example: 2
+ *               correction:
+ *                 type: string
+ *                 description: 纠正后的答案（当 type 为 correction 时）
+ *     responses:
+ *       200:
+ *         description: 创建成功
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/Feedback'
+ *       400:
+ *         description: 请求参数错误
+ */
 app.post('/api/feedbacks', async (req, res) => {
   try {
     const { queryRecordId, type, content, rating, correction } = req.body
@@ -357,7 +742,40 @@ app.post('/api/feedbacks', async (req, res) => {
   }
 })
 
-// 更新反馈
+/**
+ * @swagger
+ * /api/feedbacks/{id}:
+ *   put:
+ *     summary: 更新反馈
+ *     tags: [Feedbacks]
+ *     parameters:
+ *       - in: path
+ *         name: id
+ *         required: true
+ *         schema:
+ *           type: string
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             properties:
+ *               status:
+ *                 type: string
+ *                 enum: [pending, processed, resolved]
+ *               resolution:
+ *                 type: string
+ *     responses:
+ *       200:
+ *         description: 更新成功
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/Feedback'
+ *       404:
+ *         description: 反馈不存在
+ */
 app.put('/api/feedbacks/:id', async (req, res) => {
   try {
     const feedbacks = await readFeedbacks()
@@ -384,7 +802,34 @@ app.put('/api/feedbacks/:id', async (req, res) => {
   }
 })
 
-// AI 分析反馈并生成优化建议
+/**
+ * @swagger
+ * /api/feedbacks/{id}/analyze:
+ *   post:
+ *     summary: AI 分析反馈并生成优化建议
+ *     description: 分析反馈内容，自动生成优化建议
+ *     tags: [Feedbacks]
+ *     parameters:
+ *       - in: path
+ *         name: id
+ *         required: true
+ *         schema:
+ *           type: string
+ *     responses:
+ *       200:
+ *         description: 分析成功
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 feedback:
+ *                   $ref: '#/components/schemas/Feedback'
+ *                 suggestion:
+ *                   $ref: '#/components/schemas/OptimizationSuggestion'
+ *       404:
+ *         description: 反馈不存在
+ */
 app.post('/api/feedbacks/:id/analyze', async (req, res) => {
   try {
     const feedbacks = await readFeedbacks()
@@ -428,7 +873,28 @@ app.post('/api/feedbacks/:id/analyze', async (req, res) => {
 
 // ========== 数据集（Dataset）API ==========
 
-// 获取数据集列表
+/**
+ * @swagger
+ * /api/datasets:
+ *   get:
+ *     summary: 获取数据集列表
+ *     tags: [Datasets]
+ *     parameters:
+ *       - in: query
+ *         name: appId
+ *         schema:
+ *           type: string
+ *         description: 应用ID筛选
+ *     responses:
+ *       200:
+ *         description: 数据集列表
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: array
+ *               items:
+ *                 $ref: '#/components/schemas/Dataset'
+ */
 app.get('/api/datasets', async (req, res) => {
   try {
     const { appId } = req.query
@@ -444,7 +910,28 @@ app.get('/api/datasets', async (req, res) => {
   }
 })
 
-// 获取数据集详情
+/**
+ * @swagger
+ * /api/datasets/{id}:
+ *   get:
+ *     summary: 获取数据集详情
+ *     tags: [Datasets]
+ *     parameters:
+ *       - in: path
+ *         name: id
+ *         required: true
+ *         schema:
+ *           type: string
+ *     responses:
+ *       200:
+ *         description: 数据集详情
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/Dataset'
+ *       404:
+ *         description: 数据集不存在
+ */
 app.get('/api/datasets/:id', async (req, res) => {
   try {
     const datasets = await readDatasets()
@@ -458,7 +945,46 @@ app.get('/api/datasets/:id', async (req, res) => {
   }
 })
 
-// 创建数据集
+/**
+ * @swagger
+ * /api/datasets:
+ *   post:
+ *     summary: 创建数据集
+ *     tags: [Datasets]
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             required:
+ *               - appId
+ *               - name
+ *             properties:
+ *               appId:
+ *                 type: string
+ *                 example: app_1234567890
+ *               name:
+ *                 type: string
+ *                 example: 常见问题-2025Q1
+ *               description:
+ *                 type: string
+ *                 example: 一季度常见问题
+ *               queryRecordIds:
+ *                 type: array
+ *                 items:
+ *                   type: string
+ *                 example: ["qr_1", "qr_2"]
+ *     responses:
+ *       200:
+ *         description: 创建成功
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/Dataset'
+ *       400:
+ *         description: 请求参数错误
+ */
 app.post('/api/datasets', async (req, res) => {
   try {
     const { appId, name, description, queryRecordIds } = req.body
@@ -485,7 +1011,43 @@ app.post('/api/datasets', async (req, res) => {
   }
 })
 
-// 更新数据集
+/**
+ * @swagger
+ * /api/datasets/{id}:
+ *   put:
+ *     summary: 更新数据集
+ *     tags: [Datasets]
+ *     parameters:
+ *       - in: path
+ *         name: id
+ *         required: true
+ *         schema:
+ *           type: string
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             properties:
+ *               name:
+ *                 type: string
+ *               description:
+ *                 type: string
+ *               queryRecordIds:
+ *                 type: array
+ *                 items:
+ *                   type: string
+ *     responses:
+ *       200:
+ *         description: 更新成功
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/Dataset'
+ *       404:
+ *         description: 数据集不存在
+ */
 app.put('/api/datasets/:id', async (req, res) => {
   try {
     const datasets = await readDatasets()
@@ -506,7 +1068,31 @@ app.put('/api/datasets/:id', async (req, res) => {
   }
 })
 
-// 删除数据集
+/**
+ * @swagger
+ * /api/datasets/{id}:
+ *   delete:
+ *     summary: 删除数据集
+ *     tags: [Datasets]
+ *     parameters:
+ *       - in: path
+ *         name: id
+ *         required: true
+ *         schema:
+ *           type: string
+ *     responses:
+ *       200:
+ *         description: 删除成功
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 success:
+ *                   type: boolean
+ *       404:
+ *         description: 数据集不存在
+ */
 app.delete('/api/datasets/:id', async (req, res) => {
   try {
     const datasets = await readDatasets()
@@ -560,7 +1146,57 @@ app.delete('/api/datasets/:id/records/:recordId', async (req, res) => {
 
 // ========== 命中分析（HitAnalysis）API ==========
 
-// 全量命中分析（兼容旧接口）
+/**
+ * @swagger
+ * /api/hit-analyses:
+ *   post:
+ *     summary: 创建命中分析任务（全量）
+ *     description: 对指定时间范围内的所有问答记录进行命中分析
+ *     tags: [HitAnalyses]
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             required:
+ *               - appId
+ *               - datasetId
+ *               - startDate
+ *               - endDate
+ *             properties:
+ *               appId:
+ *                 type: string
+ *                 example: app_1234567890
+ *               datasetId:
+ *                 type: string
+ *                 example: ds_1234567890
+ *               startDate:
+ *                 type: string
+ *                 format: date
+ *                 example: '2025-01-01'
+ *               endDate:
+ *                 type: string
+ *                 format: date
+ *                 example: '2025-01-31'
+ *     responses:
+ *       200:
+ *         description: 分析完成
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 count:
+ *                   type: integer
+ *                   description: 分析的记录数
+ *                 analyses:
+ *                   type: array
+ *                   items:
+ *                     $ref: '#/components/schemas/HitAnalysis'
+ *       400:
+ *         description: 请求参数错误
+ */
 app.post('/api/hit-analyses', async (req, res) => {
   try {
     const { appId, datasetId, startDate, endDate } = req.body
@@ -588,7 +1224,42 @@ app.post('/api/hit-analyses/full', async (req, res) => {
   }
 })
 
-// 增量命中分析
+/**
+ * @swagger
+ * /api/hit-analyses/incremental:
+ *   post:
+ *     summary: 增量命中分析
+ *     description: 仅分析尚未被处理的问答记录，适合每日巡检
+ *     tags: [HitAnalyses]
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             required:
+ *               - appId
+ *               - datasetId
+ *             properties:
+ *               appId:
+ *                 type: string
+ *               datasetId:
+ *                 type: string
+ *     responses:
+ *       200:
+ *         description: 分析完成
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 count:
+ *                   type: integer
+ *                 analyses:
+ *                   type: array
+ *                   items:
+ *                     $ref: '#/components/schemas/HitAnalysis'
+ */
 app.post('/api/hit-analyses/incremental', async (req, res) => {
   try {
     const { appId, datasetId } = req.body
@@ -602,7 +1273,41 @@ app.post('/api/hit-analyses/incremental', async (req, res) => {
   }
 })
 
-// 获取命中分析结果
+/**
+ * @swagger
+ * /api/hit-analyses:
+ *   get:
+ *     summary: 获取命中分析结果
+ *     tags: [HitAnalyses]
+ *     parameters:
+ *       - in: query
+ *         name: appId
+ *         schema:
+ *           type: string
+ *       - in: query
+ *         name: datasetId
+ *         schema:
+ *           type: string
+ *       - in: query
+ *         name: startDate
+ *         schema:
+ *           type: string
+ *           format: date
+ *       - in: query
+ *         name: endDate
+ *         schema:
+ *           type: string
+ *           format: date
+ *     responses:
+ *       200:
+ *         description: 命中分析结果列表
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: array
+ *               items:
+ *                 $ref: '#/components/schemas/HitAnalysis'
+ */
 app.get('/api/hit-analyses', async (req, res) => {
   try {
     const { appId, datasetId, startDate, endDate } = req.query
@@ -633,7 +1338,56 @@ app.get('/api/hit-analyses', async (req, res) => {
   }
 })
 
-// 获取命中分析统计
+/**
+ * @swagger
+ * /api/hit-analyses/stats:
+ *   get:
+ *     summary: 获取命中分析统计
+ *     description: 统计完全命中、80%相似、60%相似、未命中的数量
+ *     tags: [HitAnalyses]
+ *     parameters:
+ *       - in: query
+ *         name: appId
+ *         schema:
+ *           type: string
+ *       - in: query
+ *         name: datasetId
+ *         schema:
+ *           type: string
+ *       - in: query
+ *         name: startDate
+ *         schema:
+ *           type: string
+ *           format: date
+ *       - in: query
+ *         name: endDate
+ *         schema:
+ *           type: string
+ *           format: date
+ *     responses:
+ *       200:
+ *         description: 命中统计
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 exact:
+ *                   type: integer
+ *                   description: 完全命中数
+ *                 high:
+ *                   type: integer
+ *                   description: 80%相似命中数
+ *                 medium:
+ *                   type: integer
+ *                   description: 60%相似命中数
+ *                 none:
+ *                   type: integer
+ *                   description: 未命中数
+ *                 total:
+ *                   type: integer
+ *                   description: 总数
+ */
 app.get('/api/hit-analyses/stats', async (req, res) => {
   try {
     const { appId, datasetId, startDate, endDate } = req.query
@@ -674,7 +1428,55 @@ app.get('/api/hit-analyses/stats', async (req, res) => {
 
 // ========== 效果评估（Evaluation）API ==========
 
-// 创建评估任务
+/**
+ * @swagger
+ * /api/evaluations:
+ *   post:
+ *     summary: 创建评估任务
+ *     description: 评估应用在数据集上的表现（准确性、速度、命中率等）
+ *     tags: [Evaluations]
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             required:
+ *               - appId
+ *               - datasetId
+ *               - evaluationType
+ *               - startDate
+ *               - endDate
+ *             properties:
+ *               appId:
+ *                 type: string
+ *                 example: app_1234567890
+ *               datasetId:
+ *                 type: string
+ *                 example: ds_1234567890
+ *               evaluationType:
+ *                 type: string
+ *                 enum: [before, after]
+ *                 description: 评估类型：优化前或优化后
+ *                 example: before
+ *               startDate:
+ *                 type: string
+ *                 format: date
+ *                 example: '2025-01-01'
+ *               endDate:
+ *                 type: string
+ *                 format: date
+ *                 example: '2025-01-31'
+ *     responses:
+ *       200:
+ *         description: 评估完成
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/Evaluation'
+ *       400:
+ *         description: 请求参数错误
+ */
 app.post('/api/evaluations', async (req, res) => {
   try {
     const { appId, datasetId, evaluationType, startDate, endDate } = req.body
@@ -726,7 +1528,36 @@ app.post('/api/evaluations', async (req, res) => {
   }
 })
 
-// 获取评估结果
+/**
+ * @swagger
+ * /api/evaluations:
+ *   get:
+ *     summary: 获取评估结果
+ *     tags: [Evaluations]
+ *     parameters:
+ *       - in: query
+ *         name: appId
+ *         schema:
+ *           type: string
+ *       - in: query
+ *         name: datasetId
+ *         schema:
+ *           type: string
+ *       - in: query
+ *         name: evaluationType
+ *         schema:
+ *           type: string
+ *           enum: [before, after]
+ *     responses:
+ *       200:
+ *         description: 评估结果列表
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: array
+ *               items:
+ *                 $ref: '#/components/schemas/Evaluation'
+ */
 app.get('/api/evaluations', async (req, res) => {
   try {
     const { appId, datasetId, evaluationType } = req.query
@@ -748,7 +1579,39 @@ app.get('/api/evaluations', async (req, res) => {
   }
 })
 
-// 对比优化前后
+/**
+ * @swagger
+ * /api/evaluations/compare:
+ *   get:
+ *     summary: 对比优化前后
+ *     description: 对比优化前后的评估结果，验证优化成效
+ *     tags: [Evaluations]
+ *     parameters:
+ *       - in: query
+ *         name: appId
+ *         required: true
+ *         schema:
+ *           type: string
+ *       - in: query
+ *         name: datasetId
+ *         required: true
+ *         schema:
+ *           type: string
+ *     responses:
+ *       200:
+ *         description: 对比结果
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 before:
+ *                   $ref: '#/components/schemas/Evaluation'
+ *                 after:
+ *                   $ref: '#/components/schemas/Evaluation'
+ *       400:
+ *         description: 请求参数错误
+ */
 app.get('/api/evaluations/compare', async (req, res) => {
   try {
     const { appId, datasetId } = req.query
@@ -772,7 +1635,32 @@ app.get('/api/evaluations/compare', async (req, res) => {
 
 // ========== 优化建议（OptimizationSuggestion）API ==========
 
-// 获取优化建议列表
+/**
+ * @swagger
+ * /api/optimization-suggestions:
+ *   get:
+ *     summary: 获取优化建议列表
+ *     tags: [OptimizationSuggestions]
+ *     parameters:
+ *       - in: query
+ *         name: appId
+ *         schema:
+ *           type: string
+ *       - in: query
+ *         name: status
+ *         schema:
+ *           type: string
+ *           enum: [pending, applied, rejected]
+ *     responses:
+ *       200:
+ *         description: 优化建议列表
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: array
+ *               items:
+ *                 $ref: '#/components/schemas/OptimizationSuggestion'
+ */
 app.get('/api/optimization-suggestions', async (req, res) => {
   try {
     const { appId, status } = req.query
@@ -791,7 +1679,42 @@ app.get('/api/optimization-suggestions', async (req, res) => {
   }
 })
 
-// 更新优化建议状态
+/**
+ * @swagger
+ * /api/optimization-suggestions/{id}:
+ *   put:
+ *     summary: 更新优化建议状态
+ *     tags: [OptimizationSuggestions]
+ *     parameters:
+ *       - in: path
+ *         name: id
+ *         required: true
+ *         schema:
+ *           type: string
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             properties:
+ *               status:
+ *                 type: string
+ *                 enum: [pending, applied, rejected]
+ *                 example: applied
+ *               result:
+ *                 type: string
+ *                 example: 已更新数据集并重新训练
+ *     responses:
+ *       200:
+ *         description: 更新成功
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/OptimizationSuggestion'
+ *       404:
+ *         description: 建议不存在
+ */
 app.put('/api/optimization-suggestions/:id', async (req, res) => {
   try {
     const suggestions = await readOptimizationSuggestions()

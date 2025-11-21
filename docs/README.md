@@ -35,17 +35,19 @@
 技术实现文档：
 - `api-reference.md` - API 参考文档
 - `快速开发指南.md` - 开发指南
-- `实施计划.md` - 当前重构实施计划
 
 ## 当前项目状态
 
 **当前版本**：v1.0.0
 
 **核心功能**：
+- 应用管理（App）
 - 问答记录跟踪（input/output）
 - 反馈闭环处理
 - 数据集管理
-- 模型评估
+- 命中分析
+- 效果评估
+- 优化建议跟踪
 
 **技术栈**：
 - 前端：Vue 3 + TypeScript + shadcn-vue（Blue 主题）
@@ -56,8 +58,8 @@
 
 - [设计总纲](./design.md) - 了解整体设计
 - [RFC-001 应用优化平台方案](./rfcs/RFC-001-应用优化平台方案.md) - 查看详细方案
-- [实施计划](./tech/实施计划.md) - 查看实施步骤
-- [API 参考](./tech/api-reference.md) - API 文档
+- [API 参考](./tech/api-reference.md) - API 文档（文本文档）
+- [交互式 API 文档](http://localhost:3001/api-docs) - Swagger UI（推荐）
 
 ## 文档更新规范
 

@@ -17,15 +17,9 @@ CIRL 面向 AI 应用 / 知识库场景，围绕“应用（App）”构建问�
 
 ## 技术栈
 
-- 前端：Vue 3 + TypeScript + Vite + Tailwind CSS v4 + shadcn-vue（Blue 主题）
-- 后端：Node.js + Express
-- 数据：本地 JSON 文件（apps / query-records / feedbacks / datasets / hit-analyses / evaluations / optimization-suggestions）
-
-## 技术栈
-
-- **前端**：Vue 3 + TypeScript + Vite + Tailwind CSS v4 + shadcn-vue
+- **前端**：Vue 3 + TypeScript + Vite + Tailwind CSS v4 + shadcn-vue（Blue 主题）
 - **后端**：Node.js + Express
-- **数据存储**：本地 JSON 文件
+- **数据存储**：本地 JSON 文件（apps / query-records / feedbacks / datasets / hit-analyses / evaluations / optimization-suggestions）
 
 ## 快速开始
 
@@ -86,6 +80,10 @@ cirl/
 - `docs/rfcs/` - 方案层 RFC
 - `docs/tech/` - 实现层技术文档（含 API 参考）
 - `docs/schemas/` - 数据 Schema
+
+## API 文档
+
+启动服务后，访问 **http://localhost:3001/api-docs** 查看交互式 API 文档（Swagger UI），支持在线测试所有接口。
 
 ## License
 

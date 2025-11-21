@@ -1,9 +1,14 @@
 # API 参考文档
 
+## 快速访问
+
+**交互式 API 文档（推荐）**：访问 [http://localhost:3001/api-docs](http://localhost:3001/api-docs) 查看 Swagger UI 交互式文档，支持在线测试接口。
+
 ## 基础信息
 
 - Base URL: `http://localhost:3001/api`
 - Content-Type: `application/json`
+- API 文档: `http://localhost:3001/api-docs` (Swagger UI)
 
 ---
 
@@ -253,4 +258,10 @@ curl -X POST http://localhost:3001/api/feedbacks \
 
 ---
 
-> 本文档覆盖当前实现的全部 REST API。若需扩展，请同步更新此文件与 `docs/design.md`、`docs/rfcs/`。
+## 10. 相关资源
+
+- **交互式 API 文档**：http://localhost:3001/api-docs（Swagger UI，推荐使用）
+- **数据模型定义**：`docs/PROJECT_OVERVIEW.md`、`docs/design.md`
+- **方案文档**：`docs/rfcs/RFC-001-应用优化平台方案.md`
+
+> **提示**：本文档覆盖当前实现的全部 REST API。若需扩展，请同步更新此文件、Swagger 注释与相关设计文档。
