@@ -14,21 +14,45 @@ if [ "$1" == "--local" ]; then
         exit 1
     fi
 
-    # 检查并安装依赖
-    if [ ! -d "node_modules" ] || [ ! -f "node_modules/.package-lock.json" ]; then
+    # 检查并安装根目录依赖
+    # 判断逻辑：如果 node_modules 不存在，或 package.json 比 node_modules 新，或关键依赖缺失，则需要安装
+    NEED_INSTALL_ROOT=false
+    if [ ! -d "node_modules" ]; then
+        NEED_INSTALL_ROOT=true
+        echo "📦 检测到根目录 node_modules 不存在"
+    elif [ "package.json" -nt "node_modules" ] || [ "package-lock.json" -nt "node_modules" ] 2>/dev/null; then
+        NEED_INSTALL_ROOT=true
+        echo "📦 检测到 package.json 或 package-lock.json 已更新"
+    elif [ ! -d "node_modules/express" ] || [ ! -d "node_modules/swagger-jsdoc" ] || [ ! -d "node_modules/swagger-ui-express" ]; then
+        NEED_INSTALL_ROOT=true
+        echo "📦 检测到关键依赖缺失"
+    fi
+
+    if [ "$NEED_INSTALL_ROOT" = true ]; then
         echo "📦 安装根目录依赖..."
         npm install || exit 1
+    else
+        echo "✅ 根目录依赖已就绪"
     fi
 
-    # 检查关键依赖是否存在
-    if [ ! -d "node_modules/swagger-jsdoc" ] || [ ! -d "node_modules/swagger-ui-express" ]; then
-        echo "📦 安装缺失的依赖..."
-        npm install || exit 1
-    fi
-
+    # 检查并安装前端依赖
+    NEED_INSTALL_WEB=false
     if [ ! -d "web/node_modules" ]; then
+        NEED_INSTALL_WEB=true
+        echo "📦 检测到前端 node_modules 不存在"
+    elif [ "web/package.json" -nt "web/node_modules" ] || [ "web/package-lock.json" -nt "web/node_modules" ] 2>/dev/null; then
+        NEED_INSTALL_WEB=true
+        echo "📦 检测到前端 package.json 或 package-lock.json 已更新"
+    elif [ ! -d "web/node_modules/vue" ] || [ ! -d "web/node_modules/vite" ] || [ ! -d "web/node_modules/vue-tsc" ]; then
+        NEED_INSTALL_WEB=true
+        echo "📦 检测到前端关键依赖缺失"
+    fi
+
+    if [ "$NEED_INSTALL_WEB" = true ]; then
         echo "📦 安装前端依赖..."
         cd web && npm install && cd .. || exit 1
+    else
+        echo "✅ 前端依赖已就绪"
     fi
 
     # 清理旧的 PID 文件
@@ -139,6 +163,53 @@ else
             sleep 2
         fi
     fi
+
+    # 检查依赖文件和必要目录（容器构建需要）
+    echo "🔍 检查项目文件..."
+
+    if [ ! -f "package.json" ]; then
+        echo "❌ 错误: 未找到 package.json 文件"
+        exit 1
+    fi
+
+    if [ ! -f "web/package.json" ]; then
+        echo "❌ 错误: 未找到 web/package.json 文件"
+        exit 1
+    fi
+
+    # 检查关键源代码目录
+    if [ ! -d "server" ]; then
+        echo "❌ 错误: 未找到 server 目录"
+        exit 1
+    fi
+
+    if [ ! -d "web/src" ]; then
+        echo "❌ 错误: 未找到 web/src 目录"
+        exit 1
+    fi
+
+    # 检查 Dockerfile
+    if [ ! -f "docker/Dockerfile" ]; then
+        echo "❌ 错误: 未找到 docker/Dockerfile 文件"
+        exit 1
+    fi
+
+    # 检查 docker-compose.yml
+    if [ ! -f "docker/docker-compose.yml" ]; then
+        echo "❌ 错误: 未找到 docker/docker-compose.yml 文件"
+        exit 1
+    fi
+
+    # 提示：如果缺少 package-lock.json，Dockerfile 会使用 npm install
+    if [ ! -f "package-lock.json" ]; then
+        echo "⚠️  提示: 根目录缺少 package-lock.json，容器构建将使用 npm install"
+    fi
+
+    if [ ! -f "web/package-lock.json" ]; then
+        echo "⚠️  提示: web 目录缺少 package-lock.json，容器构建将使用 npm install"
+    fi
+
+    echo "✅ 项目文件检查通过"
 
     # 构建并启动容器
     echo "🔨 构建 Docker 镜像..."
