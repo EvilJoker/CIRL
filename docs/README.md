@@ -34,7 +34,7 @@
 
 技术实现文档：
 - `api-reference.md` - API 参考文档
-- `快速开发指南.md` - 开发指南
+- `快速开发指南.md` - 开发者快速上手指南
 
 ## 当前项目状态
 
@@ -56,10 +56,17 @@
 
 ## 快速导航
 
+### 入门指南
+- [项目总览](./PROJECT_OVERVIEW.md) - 项目概览和功能清单
+- [快速开发指南](../快速开发指南.md) - 开发、调试和部署指南
+
+### 设计文档
 - [设计总纲](./design.md) - 了解整体设计
 - [RFC-001 应用优化平台方案](./rfcs/RFC-001-应用优化平台方案.md) - 查看详细方案
+
+### API 文档
 - [API 参考](./tech/api-reference.md) - API 文档（文本文档）
-- [交互式 API 文档](http://localhost:3001/api-docs) - Swagger UI（推荐）
+- [交互式 API 文档](http://localhost:10001/api-docs) - Swagger UI（推荐）
 
 ## 文档更新规范
 

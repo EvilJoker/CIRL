@@ -13,7 +13,7 @@
       "账户",
       "安全"
     ],
-    "ignored": false,
+    "ignored": true,
     "metadata": {
       "responseTime": 820,
       "lastAnalyzedAt": "2025-01-20T01:00:00.000Z",
@@ -21,7 +21,7 @@
       "lastSimilarity": 100
     },
     "createdAt": "2025-01-19T02:05:00.000Z",
-    "updatedAt": "2025-01-19T02:05:00.000Z"
+    "updatedAt": "2025-11-21T07:17:04.907Z"
   },
   {
     "id": "qr_1002",
@@ -37,7 +37,7 @@
       "计费",
       "套餐"
     ],
-    "ignored": false,
+    "ignored": true,
     "metadata": {
       "responseTime": 910,
       "lastAnalyzedAt": "2025-01-20T01:00:30.000Z",
@@ -45,7 +45,7 @@
       "lastSimilarity": 84
     },
     "createdAt": "2025-01-19T03:20:00.000Z",
-    "updatedAt": "2025-01-19T03:20:00.000Z"
+    "updatedAt": "2025-11-21T07:17:03.521Z"
   },
   {
     "id": "qr_2001",
@@ -61,7 +61,7 @@
       "折扣",
       "定价"
     ],
-    "ignored": false,
+    "ignored": true,
     "metadata": {
       "responseTime": 760,
       "lastAnalyzedAt": "2025-01-20T01:01:00.000Z",
@@ -69,7 +69,7 @@
       "lastSimilarity": 100
     },
     "createdAt": "2025-01-19T10:00:00.000Z",
-    "updatedAt": "2025-11-21T06:07:06.759Z"
+    "updatedAt": "2025-11-21T07:17:02.461Z"
   },
   {
     "id": "qr_2002",
@@ -85,7 +85,7 @@
       "流程",
       "采购"
     ],
-    "ignored": false,
+    "ignored": true,
     "metadata": {
       "responseTime": 640,
       "lastAnalyzedAt": "2025-01-20T01:01:30.000Z",
@@ -93,6 +93,6 @@
       "lastSimilarity": 72
     },
     "createdAt": "2025-01-19T11:45:00.000Z",
-    "updatedAt": "2025-11-21T06:07:08.323Z"
+    "updatedAt": "2025-11-21T07:16:55.478Z"
   }
 ]

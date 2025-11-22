@@ -31,3 +31,6 @@ Thumbs.db
 .cache/
 .server.pid
 
+# Docker
+.docker/
+

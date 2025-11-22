@@ -1,0 +1,25 @@
+services:
+  cirl:
+    build:
+      context: ..
+      dockerfile: docker/Dockerfile
+      args:
+        NPM_REGISTRY: ${NPM_REGISTRY:-https://registry.npmmirror.com}
+        NPM_PROXY: ${NPM_PROXY:-${http_proxy}}
+        NPM_HTTPS_PROXY: ${NPM_HTTPS_PROXY:-${https_proxy}}
+    container_name: cirl
+    network_mode: host
+    volumes:
+      # 数据持久化
+      - ../data:/app/data
+    environment:
+      - NODE_ENV=production
+      - PORT=10001
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "node", "-e", "require('http').get('http://localhost:10001/api/apps', (r) => {process.exit(r.statusCode === 200 ? 0 : 1)})"]
+      interval: 30s
+      timeout: 3s
+      retries: 3
+      start_period: 10s
+

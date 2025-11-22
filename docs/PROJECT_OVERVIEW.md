@@ -152,7 +152,7 @@ interface OptimizationSuggestion {
 | Suggestions | GET/PUT | `/api/optimization-suggestions` | 优化建议跟踪 |
 
 **API 文档**：
-- 交互式文档（推荐）：http://localhost:3001/api-docs（Swagger UI）
+- 交互式文档（推荐）：http://localhost:10001/api-docs（Swagger UI）
 - 文本文档：`docs/tech/api-reference.md`
 
 ## 6. 前端布局
@@ -190,7 +190,7 @@ cd web && npm install && cd ..
 ./start.sh
 ```
 
-浏览器访问 `http://localhost:5173`，进入对应导航即可操作。
+浏览器访问 `http://localhost:10002`，进入对应导航即可操作。
 
 ## 9. 功能清单（精简版）
 

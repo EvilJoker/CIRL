@@ -2,13 +2,13 @@
 
 ## 快速访问
 
-**交互式 API 文档（推荐）**：访问 [http://localhost:3001/api-docs](http://localhost:3001/api-docs) 查看 Swagger UI 交互式文档，支持在线测试接口。
+**交互式 API 文档（推荐）**：访问 [http://localhost:10001/api-docs](http://localhost:10001/api-docs) 查看 Swagger UI 交互式文档，支持在线测试接口。
 
 ## 基础信息
 
-- Base URL: `http://localhost:3001/api`
+- Base URL: `http://localhost:10001/api`
 - Content-Type: `application/json`
-- API 文档: `http://localhost:3001/api-docs` (Swagger UI)
+- API 文档: `http://localhost:10001/api-docs` (Swagger UI)
 
 ---
 
@@ -236,7 +236,7 @@
 
 ```bash
 # 创建问答记录
-curl -X POST http://localhost:3001/api/query-records \
+curl -X POST http://localhost:10001/api/query-records \
   -H "Content-Type: application/json" \
   -d '{
     "appId": "app_123",
@@ -246,7 +246,7 @@ curl -X POST http://localhost:3001/api/query-records \
   }'
 
 # 将返回的 id 用于反馈
-curl -X POST http://localhost:3001/api/feedbacks \
+curl -X POST http://localhost:10001/api/feedbacks \
   -H "Content-Type: application/json" \
   -d '{
     "queryRecordId": "qr_1700000000",
@@ -260,7 +260,7 @@ curl -X POST http://localhost:3001/api/feedbacks \
 
 ## 10. 相关资源
 
-- **交互式 API 文档**：http://localhost:3001/api-docs（Swagger UI，推荐使用）
+- **交互式 API 文档**：http://localhost:10001/api-docs（Swagger UI，推荐使用）
 - **数据模型定义**：`docs/PROJECT_OVERVIEW.md`、`docs/design.md`
 - **方案文档**：`docs/rfcs/RFC-001-应用优化平台方案.md`
 

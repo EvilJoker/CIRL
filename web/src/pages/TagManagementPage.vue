@@ -36,7 +36,7 @@
 <script setup lang="ts">
 import { ref, onMounted } from 'vue'
 import { fetchQueryRecords, fetchApps } from '@/lib/api'
-import type { QueryRecord, App } from '@/types'
+import type { App } from '@/types'
 import { formatDate } from '@/lib/utils'
 import { Card } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
