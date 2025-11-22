@@ -27,7 +27,10 @@
         >
           <div class="flex items-start justify-between">
             <div class="flex-1">
-              <h4 class="font-semibold">{{ app.name }}</h4>
+              <div class="flex items-center gap-2">
+                <h4 class="font-semibold">{{ app.name }}</h4>
+                <span class="text-xs text-muted-foreground font-mono">ID: {{ app.id }}</span>
+              </div>
               <p v-if="app.description" class="text-sm text-muted-foreground mt-1">
                 {{ app.description }}
               </p>

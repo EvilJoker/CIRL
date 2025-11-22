@@ -23,6 +23,13 @@
     },
     "createdAt": "2025-01-18T09:30:00.000Z",
     "updatedAt": "2025-01-18T09:30:00.000Z"
+  },
+  {
+    "id": "app_1763782173728",
+    "name": "sqyAssistant",
+    "description": "孙启元的个人助手",
+    "metadata": {},
+    "createdAt": "2025-11-22T03:29:33.728Z",
+    "updatedAt": "2025-11-22T03:29:33.728Z"
   }
 ]
-
