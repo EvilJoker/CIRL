@@ -136,14 +136,17 @@ async function performHitAnalysisTask({ appId, datasetId, startDate, endDate, mo
  *         content:
  *           application/json:
  *             schema:
- *               type: array
- *               items:
- *                 $ref: '#/components/schemas/App'
+ *               type: object
+ *               properties:
+ *                 data:
+ *                   type: array
+ *                   items:
+ *                     $ref: '#/components/schemas/App'
  */
 app.get('/api/apps', async (req, res) => {
   try {
     const apps = await readApps()
-    res.json(apps)
+    res.json({ data: apps })
   } catch (error) {
     res.status(500).json({ error: error.message })
   }
@@ -644,9 +647,12 @@ app.put('/api/query-records/:id', async (req, res) => {
  *         content:
  *           application/json:
  *             schema:
- *               type: array
- *               items:
- *                 $ref: '#/components/schemas/Feedback'
+ *               type: object
+ *               properties:
+ *                 data:
+ *                   type: array
+ *                   items:
+ *                     $ref: '#/components/schemas/Feedback'
  */
 app.get('/api/feedbacks', async (req, res) => {
   try {
@@ -665,7 +671,7 @@ app.get('/api/feedbacks', async (req, res) => {
       feedbacks = feedbacks.filter(f => recordIds.includes(f.queryRecordId))
     }
 
-    res.json(feedbacks)
+    res.json({ data: feedbacks })
   } catch (error) {
     res.status(500).json({ error: error.message })
   }
@@ -891,9 +897,12 @@ app.post('/api/feedbacks/:id/analyze', async (req, res) => {
  *         content:
  *           application/json:
  *             schema:
- *               type: array
- *               items:
- *                 $ref: '#/components/schemas/Dataset'
+ *               type: object
+ *               properties:
+ *                 data:
+ *                   type: array
+ *                   items:
+ *                     $ref: '#/components/schemas/Dataset'
  */
 app.get('/api/datasets', async (req, res) => {
   try {
@@ -904,7 +913,7 @@ app.get('/api/datasets', async (req, res) => {
       datasets = datasets.filter(d => d.appId === appId)
     }
 
-    res.json(datasets)
+    res.json({ data: datasets })
   } catch (error) {
     res.status(500).json({ error: error.message })
   }
@@ -1304,9 +1313,12 @@ app.post('/api/hit-analyses/incremental', async (req, res) => {
  *         content:
  *           application/json:
  *             schema:
- *               type: array
- *               items:
- *                 $ref: '#/components/schemas/HitAnalysis'
+ *               type: object
+ *               properties:
+ *                 data:
+ *                   type: array
+ *                   items:
+ *                     $ref: '#/components/schemas/HitAnalysis'
  */
 app.get('/api/hit-analyses', async (req, res) => {
   try {
@@ -1332,7 +1344,7 @@ app.get('/api/hit-analyses', async (req, res) => {
       analyses = analyses.filter(a => recordIds.includes(a.queryRecordId))
     }
 
-    res.json(analyses)
+    res.json({ data: analyses })
   } catch (error) {
     res.status(500).json({ error: error.message })
   }
@@ -1554,9 +1566,12 @@ app.post('/api/evaluations', async (req, res) => {
  *         content:
  *           application/json:
  *             schema:
- *               type: array
- *               items:
- *                 $ref: '#/components/schemas/Evaluation'
+ *               type: object
+ *               properties:
+ *                 data:
+ *                   type: array
+ *                   items:
+ *                     $ref: '#/components/schemas/Evaluation'
  */
 app.get('/api/evaluations', async (req, res) => {
   try {
@@ -1573,7 +1588,7 @@ app.get('/api/evaluations', async (req, res) => {
       evaluations = evaluations.filter(e => e.evaluationType === evaluationType)
     }
 
-    res.json(evaluations)
+    res.json({ data: evaluations })
   } catch (error) {
     res.status(500).json({ error: error.message })
   }
@@ -1657,9 +1672,12 @@ app.get('/api/evaluations/compare', async (req, res) => {
  *         content:
  *           application/json:
  *             schema:
- *               type: array
- *               items:
- *                 $ref: '#/components/schemas/OptimizationSuggestion'
+ *               type: object
+ *               properties:
+ *                 data:
+ *                   type: array
+ *                   items:
+ *                     $ref: '#/components/schemas/OptimizationSuggestion'
  */
 app.get('/api/optimization-suggestions', async (req, res) => {
   try {
@@ -1673,7 +1691,7 @@ app.get('/api/optimization-suggestions', async (req, res) => {
       suggestions = suggestions.filter(s => s.status === status)
     }
 
-    res.json(suggestions)
+    res.json({ data: suggestions })
   } catch (error) {
     res.status(500).json({ error: error.message })
   }

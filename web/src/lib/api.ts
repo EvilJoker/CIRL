@@ -6,7 +6,8 @@ import type { App, QueryRecord, Feedback, Dataset, HitAnalysis, Evaluation, Opti
 export async function fetchApps(): Promise<App[]> {
   const res = await fetch(`${API_BASE}/apps`)
   if (!res.ok) throw new Error('Failed to fetch apps')
-  return res.json()
+  const result = await res.json()
+  return result.data || []
 }
 
 export async function fetchApp(id: string): Promise<App> {
@@ -114,7 +115,8 @@ export async function fetchFeedbacks(params?: {
   const queryStr = query.toString() ? `?${query.toString()}` : ''
   const res = await fetch(`${API_BASE}/feedbacks${queryStr}`)
   if (!res.ok) throw new Error('Failed to fetch feedbacks')
-  return res.json()
+  const result = await res.json()
+  return result.data || []
 }
 
 export async function createFeedback(data: {
@@ -157,7 +159,8 @@ export async function fetchDatasets(appId?: string): Promise<Dataset[]> {
   const query = appId ? `?appId=${appId}` : ''
   const res = await fetch(`${API_BASE}/datasets${query}`)
   if (!res.ok) throw new Error('Failed to fetch datasets')
-  return res.json()
+  const result = await res.json()
+  return result.data || []
 }
 
 export async function fetchDataset(id: string): Promise<Dataset> {
@@ -275,7 +278,8 @@ export async function fetchHitAnalyses(params?: {
   const queryStr = query.toString() ? `?${query.toString()}` : ''
   const res = await fetch(`${API_BASE}/hit-analyses${queryStr}`)
   if (!res.ok) throw new Error('Failed to fetch hit analyses')
-  return res.json()
+  const result = await res.json()
+  return result.data || []
 }
 
 export async function fetchHitAnalysisStats(params: {
@@ -325,7 +329,8 @@ export async function fetchEvaluations(params?: {
   const queryStr = query.toString() ? `?${query.toString()}` : ''
   const res = await fetch(`${API_BASE}/evaluations${queryStr}`)
   if (!res.ok) throw new Error('Failed to fetch evaluations')
-  return res.json()
+  const result = await res.json()
+  return result.data || []
 }
 
 export async function compareEvaluations(params: {
@@ -352,7 +357,8 @@ export async function fetchOptimizationSuggestions(params?: {
   const queryStr = query.toString() ? `?${query.toString()}` : ''
   const res = await fetch(`${API_BASE}/optimization-suggestions${queryStr}`)
   if (!res.ok) throw new Error('Failed to fetch optimization suggestions')
-  return res.json()
+  const result = await res.json()
+  return result.data || []
 }
 
 export async function updateOptimizationSuggestion(id: string, data: Partial<OptimizationSuggestion>): Promise<OptimizationSuggestion> {
