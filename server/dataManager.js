@@ -1,89 +1,91 @@
-import { fileURLToPath } from 'url'
-import { dirname, join } from 'path'
-import fs from 'fs/promises'
+import { getProvider } from './providers/index.js'
 
-const __filename = fileURLToPath(import.meta.url)
-const __dirname = dirname(__filename)
-const dataDir = join(__dirname, '..', 'data')
+// 获取当前 Provider 实例
+let provider = null
 
-// 通用数据读写函数
-async function readDataFile(filename) {
-  const filePath = join(dataDir, filename)
-  try {
-    const data = await fs.readFile(filePath, 'utf-8')
-    return JSON.parse(data)
-  } catch (error) {
-    if (error.code === 'ENOENT') {
-      return []
-    }
-    throw error
+/**
+ * 获取 Provider 实例（懒加载）
+ */
+async function getProviderInstance() {
+  if (!provider) {
+    provider = await getProvider()
   }
-}
-
-async function saveDataFile(filename, data) {
-  const filePath = join(dataDir, filename)
-  await fs.writeFile(filePath, JSON.stringify(data, null, 2), 'utf-8')
+  return provider
 }
 
 // ========== 应用（App）管理 ==========
 export async function readApps() {
-  return readDataFile('apps.json')
+  const p = await getProviderInstance()
+  return p.readApps()
 }
 
 export async function saveApps(apps) {
-  return saveDataFile('apps.json', apps)
+  const p = await getProviderInstance()
+  return p.saveApps(apps)
 }
 
 // ========== 问答记录（QueryRecord）管理 ==========
 export async function readQueryRecords() {
-  return readDataFile('query-records.json')
+  const p = await getProviderInstance()
+  return p.readQueryRecords()
 }
 
 export async function saveQueryRecords(queryRecords) {
-  return saveDataFile('query-records.json', queryRecords)
+  const p = await getProviderInstance()
+  return p.saveQueryRecords(queryRecords)
 }
 
 // ========== 反馈（Feedback）管理 ==========
 export async function readFeedbacks() {
-  return readDataFile('feedbacks.json')
+  const p = await getProviderInstance()
+  return p.readFeedbacks()
 }
 
 export async function saveFeedbacks(feedbacks) {
-  return saveDataFile('feedbacks.json', feedbacks)
+  const p = await getProviderInstance()
+  return p.saveFeedbacks(feedbacks)
 }
 
 // ========== 数据集（Dataset）管理 ==========
 export async function readDatasets() {
-  return readDataFile('datasets.json')
+  const p = await getProviderInstance()
+  return p.readDatasets()
 }
 
 export async function saveDatasets(datasets) {
-  return saveDataFile('datasets.json', datasets)
+  const p = await getProviderInstance()
+  return p.saveDatasets(datasets)
 }
 
 // ========== 命中分析（HitAnalysis）管理 ==========
 export async function readHitAnalyses() {
-  return readDataFile('hit-analyses.json')
+  const p = await getProviderInstance()
+  return p.readHitAnalyses()
 }
 
 export async function saveHitAnalyses(hitAnalyses) {
-  return saveDataFile('hit-analyses.json', hitAnalyses)
+  const p = await getProviderInstance()
+  return p.saveHitAnalyses(hitAnalyses)
 }
 
 // ========== 效果评估（Evaluation）管理 ==========
 export async function readEvaluations() {
-  return readDataFile('evaluations.json')
+  const p = await getProviderInstance()
+  return p.readEvaluations()
 }
 
 export async function saveEvaluations(evaluations) {
-  return saveDataFile('evaluations.json', evaluations)
+  const p = await getProviderInstance()
+  return p.saveEvaluations(evaluations)
 }
 
 // ========== 优化建议（OptimizationSuggestion）管理 ==========
 export async function readOptimizationSuggestions() {
-  return readDataFile('optimization-suggestions.json')
+  const p = await getProviderInstance()
+  return p.readOptimizationSuggestions()
 }
 
 export async function saveOptimizationSuggestions(suggestions) {
-  return saveDataFile('optimization-suggestions.json', suggestions)
+  const p = await getProviderInstance()
+  return p.saveOptimizationSuggestions(suggestions)
 }

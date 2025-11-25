@@ -1749,6 +1749,37 @@ app.get('*', (req, res) => {
   res.sendFile(join(__dirname, '..', 'dist', 'index.html'))
 })
 
-app.listen(PORT, () => {
+const server = app.listen(PORT, () => {
   console.log(`CIRL server running on http://localhost:${PORT}`)
 })
+
+// 优雅关闭：确保写缓冲数据不丢失
+async function gracefulShutdown(signal) {
+  console.log(`\n收到 ${signal} 信号，正在优雅关闭...`)
+
+  // 关闭 HTTP 服务器，停止接收新请求
+  server.close(async () => {
+    console.log('HTTP 服务器已关闭')
+
+    // 关闭 Provider，刷新所有写缓冲
+    try {
+      const { closeProvider } = await import('./providers/index.js')
+      await closeProvider()
+      console.log('数据已保存，Provider 已关闭')
+    } catch (error) {
+      console.error('关闭 Provider 时出错:', error)
+    }
+
+    process.exit(0)
+  })
+
+  // 如果 10 秒内未正常关闭，强制退出
+  setTimeout(() => {
+    console.error('强制退出（超时）')
+    process.exit(1)
+  }, 10000)
+}
+
+// 注册信号处理器
+process.on('SIGTERM', () => gracefulShutdown('SIGTERM'))
+process.on('SIGINT', () => gracefulShutdown('SIGINT'))

@@ -52,7 +52,7 @@
 **技术栈**：
 - 前端：Vue 3 + TypeScript + shadcn-vue（Blue 主题）
 - 后端：Node.js + Express
-- 数据：本地 JSON 文件
+- 数据：SQLite 数据库（默认，支持 JSON Provider 作为备选）
 
 ## 快速导航
 

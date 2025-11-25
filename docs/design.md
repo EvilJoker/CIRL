@@ -212,16 +212,16 @@ App (1) ──< (N) OptimizationSuggestion
 ### 3.2 后端技术栈
 
 - **框架**：Node.js + Express 4.x
-- **数据存储**：本地 JSON 文件（单一事实源）
+- **数据存储**：SQLite 数据库（默认，`data/cirl.db`），支持 JSON Provider 作为备选
 - **AI 集成**：预留接口，支持接入外部 AI 服务进行相似度计算和优化建议生成
-- **数据文件结构**：
-  - `data/apps.json` - 应用
-  - `data/query-records.json` - 问答记录
-  - `data/feedbacks.json` - 反馈
-  - `data/datasets.json` - 数据集
-  - `data/hit-analyses.json` - 命中分析
-  - `data/evaluations.json` - 效果评估
-  - `data/optimization-suggestions.json` - 优化建议
+- **数据库表结构**：
+  - `apps` - 应用
+  - `query_records` - 问答记录
+  - `feedbacks` - 反馈
+  - `datasets` - 数据集
+  - `hit_analyses` - 命中分析
+  - `evaluations` - 效果评估
+  - `optimization_suggestions` - 优化建议
 
 ### 3.3 主题配置
 
@@ -321,21 +321,22 @@ CIRL Console
 
 ### 6.1 存储策略
 
-- **单一事实源**：所有数据存储在 JSON 文件中
-- **关联关系**：通过 ID 引用，不冗余存储
-- **版本控制**：通过 Git 管理数据文件变更历史
+- **单一事实源**：所有数据存储在 SQLite 数据库（`data/cirl.db`）中，支持 JSON Provider 作为备选
+- **关联关系**：通过外键约束和 ID 引用，保证数据完整性
+- **数据持久化**：数据库文件通过 Docker volume 挂载，确保数据持久化
 
 ### 6.2 查询策略
 
-- **简单查询**：直接读取 JSON，内存过滤
-- **时间范围查询**：按 `createdAt` 字段过滤
-- **应用筛选**：按 `applicationId` 过滤
-- **性能优化**：大数据量时考虑分页、懒加载
+- **SQL 查询**：使用 SQLite 的索引优化查询性能
+- **时间范围查询**：按 `created_at` 字段过滤，使用索引加速
+- **应用筛选**：按 `app_id` 过滤，使用外键索引
+- **性能优化**：大数据量时考虑分页、懒加载，利用 SQL 索引
 
 ### 6.3 数据一致性
 
-- **写入锁**：确保并发写入时数据一致性
-- **事务性**：关键操作（如创建数据集、生成评估）需要原子性
+- **事务支持**：SQLite 支持事务，确保关键操作的原子性
+- **外键约束**：通过数据库外键保证关联数据的一致性
+- **并发控制**：SQLite WAL 模式支持多读单写，提升并发性能
 
 ## 七、评估指标
 

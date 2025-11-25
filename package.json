@@ -19,6 +19,7 @@
     "build": "npm run build:web && npm run build:copy",
     "dev": "cd web && npm run dev",
     "dev:server": "node server/index.js",
+    "migrate": "node server/migrate.js",
     "prepack": "npm run build",
     "pack": "npm pack",
     "install:local": "npm run build && npm pack && npm install -g cirl-$(node -p \"require('./package.json').version\").tgz && rm -f cirl-*.tgz"
@@ -27,6 +28,7 @@
   "author": "",
   "license": "MIT",
   "dependencies": {
+    "sql.js": "^1.12.0",
     "express": "^4.18.2",
     "cors": "^2.8.5",
     "swagger-jsdoc": "^6.2.8",

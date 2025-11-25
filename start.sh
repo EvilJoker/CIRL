@@ -75,8 +75,13 @@ if [ "$1" == "--local" ]; then
         echo "ℹ️ 未检测到 lsof，无法自动检查端口占用，请确保 10001 端口空闲。"
     fi
 
+    # 设置默认环境变量（如果未设置）
+    export DATA_PROVIDER=${DATA_PROVIDER:-sqlite}
+    export PORT=${PORT:-10001}
+    export NODE_ENV=${NODE_ENV:-development}
+
     # 启动后端服务器（后台运行）
-    echo "🔧 启动后端服务器 (端口 10001)..."
+    echo "🔧 启动后端服务器 (端口 ${PORT}, Provider: ${DATA_PROVIDER})..."
     node server/index.js > server.log 2>&1 &
     SERVER_PID=$!
 
@@ -236,24 +241,49 @@ else
     echo "⏳ 等待服务启动..."
     sleep 5
 
+    # 显示启动的容器信息
+    echo ""
+    echo "📦 已启动的容器："
+    echo "----------------------------------------"
+
+    # 使用 docker-compose ps 或 docker compose ps 显示容器状态
+    cd docker
+    if docker-compose ps 2>/dev/null || docker compose ps 2>/dev/null; then
+        # 显示容器列表（格式化为表格）
+        echo ""
+    else
+        # 如果 docker-compose ps 不可用，使用 docker ps 过滤
+        echo ""
+        docker ps --filter "name=cirl" --format "table {{.Names}}\t{{.Status}}\t{{.Ports}}" 2>/dev/null || true
+        echo ""
+    fi
+    cd ..
+
     # 检查服务状态
+    echo "🔍 检查服务状态..."
     if command -v curl &> /dev/null; then
         if curl -s http://localhost:10001/api/apps > /dev/null 2>&1; then
             echo "✅ 服务已就绪"
         else
             echo "⚠️  服务可能还在启动中，请稍候..."
         fi
+    else
+        echo "ℹ️  未检测到 curl，跳过服务健康检查"
     fi
 
     echo ""
     echo "=========================================="
     echo "  CIRL 项目已启动（容器模式）"
+    echo "=========================================="
+    echo ""
+    echo "🌐 访问地址："
     echo "  前端: http://localhost:10001"
     echo "  后端: http://localhost:10001"
     echo "  API 文档: http://localhost:10001/api-docs"
-    echo "=========================================="
     echo ""
-    echo "查看日志: cd docker && docker-compose logs -f"
-    echo "停止服务: ./stop.sh"
+    echo "📋 常用命令："
+    echo "  查看日志: cd docker && docker-compose logs -f"
+    echo "  查看容器: docker ps --filter name=cirl"
+    echo "  停止服务: ./stop.sh"
     echo ""
 fi

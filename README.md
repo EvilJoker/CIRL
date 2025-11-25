@@ -19,7 +19,7 @@ CIRL 面向 AI 应用场景，围绕"应用（App）"构建问答监控与反馈
 
 - **前端**：Vue 3 + TypeScript + Vite + Tailwind CSS v4 + shadcn-vue（Blue 主题）
 - **后端**：Node.js + Express
-- **数据存储**：本地 JSON 文件
+- **数据存储**：SQLite 数据库（支持 JSON Provider 作为备选）
 - **API 文档**：Swagger UI / OpenAPI 3.0
 
 ## 快速开始
@@ -63,8 +63,10 @@ CIRL 面向 AI 应用场景，围绕"应用（App）"构建问答监控与反馈
 cirl/
 ├── bin/              # CLI 工具
 ├── server/           # Express 后端服务
+│   ├── providers/   # 数据存储 Provider（SQLite/JSON）
+│   └── ...
 ├── web/              # Vue 3 前端项目
-├── data/             # 数据文件（JSON）
+├── data/             # 数据目录（SQLite 数据库文件）
 ├── docs/             # 文档
 ├── docker/           # Docker 相关文件
 ├── start.sh          # 启动脚本

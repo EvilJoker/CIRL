@@ -14,6 +14,7 @@ WORKDIR /app
 COPY package*.json ./
 
 # 安装根目录依赖（使用 shell 来条件设置代理）
+# sql.js 是纯 JavaScript，不需要编译
 RUN if [ -n "$NPM_PROXY" ]; then \
         export npm_config_proxy="$NPM_PROXY" && \
         export npm_config_https_proxy="$NPM_HTTPS_PROXY" && \
@@ -63,7 +64,7 @@ WORKDIR /app
 # 复制 package 文件
 COPY package*.json ./
 
-# 只安装生产依赖（使用 shell 来条件设置代理）
+# 只安装生产依赖（sql.js 是纯 JavaScript，不需要编译工具）
 RUN if [ -n "$NPM_PROXY" ]; then \
         export npm_config_proxy="$NPM_PROXY" && \
         export npm_config_https_proxy="$NPM_HTTPS_PROXY" && \

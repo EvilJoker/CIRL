@@ -1,4 +1,21 @@
 services:
+  # SQLite Web 管理界面（可选，用于查看和管理数据库）
+  sqlite-web:
+    image: coleifer/sqlite-web:latest
+    container_name: cirl-sqlite-web
+    volumes:
+      # 挂载数据目录，包含 cirl.db 文件
+      - ../data:/data
+    ports:
+      - "8080:8080"
+    command: ["-H", "0.0.0.0", "-x", "/data/cirl.db"]
+    restart: unless-stopped
+    networks:
+      - cirl-network
+    profiles:
+      - tools  # 使用 profile，默认不启动：docker-compose --profile tools up
+
+  # 主应用服务
   cirl:
     build:
       context: ..
@@ -8,18 +25,29 @@ services:
         NPM_PROXY: ${NPM_PROXY:-${http_proxy}}
         NPM_HTTPS_PROXY: ${NPM_HTTPS_PROXY:-${https_proxy}}
     container_name: cirl
-    network_mode: host
     volumes:
-      # 数据持久化
+      # 数据持久化，挂载 data 目录
       - ../data:/app/data
     environment:
       - NODE_ENV=production
       - PORT=10001
+      - DATA_PROVIDER=${DATA_PROVIDER:-sqlite}  # 默认使用 sqlite，可通过环境变量覆盖为 json
+      - SQLITE_DB_PATH=/app/data/cirl.db
+      - WRITE_BUFFER_BATCH_SIZE=${WRITE_BUFFER_BATCH_SIZE:-100}  # 写缓冲批次大小（达到此数量时触发写入）
+      - WRITE_BUFFER_FLUSH_INTERVAL=${WRITE_BUFFER_FLUSH_INTERVAL:-5000}  # 写缓冲刷新间隔（毫秒）
+    ports:
+      - "10001:10001"
     restart: unless-stopped
+    networks:
+      - cirl-network
     healthcheck:
       test: ["CMD", "node", "-e", "require('http').get('http://localhost:10001/api/apps', (r) => {process.exit(r.statusCode === 200 ? 0 : 1)})"]
       interval: 30s
       timeout: 3s
       retries: 3
       start_period: 10s
+
+networks:
+  cirl-network:
+    driver: bridge
 

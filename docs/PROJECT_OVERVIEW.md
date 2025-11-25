@@ -8,7 +8,7 @@
 - **技术栈**：
   - 前端：Vue 3 + TypeScript + Vite + Tailwind CSS v4 + shadcn-vue（Blue 主题）
   - 后端：Node.js + Express
-  - 存储：本地 JSON 文件（单一事实源，易于调试和部署）
+  - 存储：SQLite 数据库（默认，支持 JSON Provider 作为备选）
 
 ## 2. 核心能力
 
@@ -29,8 +29,8 @@
 └────────────────┘     └────────────────────┘
            ↑                         ↑
 ┌────────────────────┐     ┌────────────────────┐
-│ Vue Router + Pages │     │ JSON Data Layer     │
-│ (App / Query / ...)│     │ apps / queries ...  │
+│ Vue Router + Pages │     │ Data Provider Layer │
+│ (App / Query / ...)│     │ SQLite / JSON       │
 └────────────────────┘     └────────────────────┘
            ↑
 ┌────────────────────┐
@@ -171,13 +171,15 @@ interface OptimizationSuggestion {
 
 | 文件 | 说明 |
 | --- | --- |
-| `apps.json` | App 定义 |
-| `query-records.json` | 问答记录 |
-| `feedbacks.json` | 反馈记录 |
-| `datasets.json` | 数据集 |
-| `hit-analyses.json` | 命中分析结果 |
-| `evaluations.json` | 评估结果 |
-| `optimization-suggestions.json` | 优化建议 |
+| `apps` 表 | App 定义 |
+| `query_records` 表 | 问答记录 |
+| `feedbacks` 表 | 反馈记录 |
+| `datasets` 表 | 数据集 |
+| `hit_analyses` 表 | 命中分析结果 |
+| `evaluations` 表 | 评估结果 |
+| `optimization_suggestions` 表 | 优化建议 |
+
+**注意**：数据存储在 SQLite 数据库（`data/cirl.db`）中，支持通过 `DATA_PROVIDER` 环境变量切换到 JSON 文件存储。
 
 ## 8. 快速上手
 
