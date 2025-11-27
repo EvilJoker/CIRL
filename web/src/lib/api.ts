@@ -370,3 +370,32 @@ export async function updateOptimizationSuggestion(id: string, data: Partial<Opt
   if (!res.ok) throw new Error('Failed to update optimization suggestion')
   return res.json()
 }
+
+// ========== 统计（Stats）API ==========
+
+export interface TimelinePoint {
+  timestamp: string
+  value: number
+}
+
+export interface RequestStats {
+  appId: string
+  count24h: number
+  count7d: number
+  count30d: number
+  timeline24h: TimelinePoint[]
+  timeline7d: TimelinePoint[]
+  timeline30d: TimelinePoint[]
+}
+
+export async function fetchRequestStats(appIds?: string[]): Promise<Record<string, RequestStats>> {
+  const query = new URLSearchParams()
+  if (appIds && appIds.length > 0) {
+    query.set('appIds', appIds.join(','))
+  }
+  const queryStr = query.toString() ? `?${query.toString()}` : ''
+  const res = await fetch(`${API_BASE}/stats/requests${queryStr}`)
+  if (!res.ok) throw new Error('Failed to fetch request stats')
+  const result = await res.json()
+  return result.data || {}
+}

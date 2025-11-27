@@ -17,7 +17,8 @@ import {
   readEvaluations,
   saveEvaluations,
   readOptimizationSuggestions,
-  saveOptimizationSuggestions
+  saveOptimizationSuggestions,
+  getRequestStats
 } from './dataManager.js'
 import { calculateSimilarity, getMatchType } from './similarityService.js'
 import { calculateEvaluationMetrics } from './evaluationService.js'
@@ -331,6 +332,83 @@ app.delete('/api/apps/:id', async (req, res) => {
     const filtered = apps.filter(a => a.id !== req.params.id)
     await saveApps(filtered)
     res.json({ success: true })
+  } catch (error) {
+    res.status(500).json({ error: error.message })
+  }
+})
+
+/**
+ * @swagger
+ * /api/stats/requests:
+ *   get:
+ *     summary: 获取请求统计信息
+ *     tags: [Stats]
+ *     parameters:
+ *       - in: query
+ *         name: appIds
+ *         schema:
+ *           type: string
+ *         description: 应用ID列表，多个用逗号分隔，为空则统计所有应用
+ *     responses:
+ *       200:
+ *         description: 统计信息
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 data:
+ *                   type: object
+ *                   additionalProperties:
+ *                     type: object
+ *                     properties:
+ *                       appId:
+ *                         type: string
+ *                       count24h:
+ *                         type: number
+ *                         description: 24小时内的请求次数
+ *                       count7d:
+ *                         type: number
+ *                         description: 7天内的请求次数
+ *                       count30d:
+ *                         type: number
+ *                         description: 30天内的请求次数
+ *                       timeline24h:
+ *                         type: array
+ *                         items:
+ *                           type: object
+ *                           properties:
+ *                             timestamp:
+ *                               type: string
+ *                               format: date-time
+ *                             value:
+ *                               type: number
+ *                       timeline7d:
+ *                         type: array
+ *                         items:
+ *                           type: object
+ *                           properties:
+ *                             timestamp:
+ *                               type: string
+ *                               format: date-time
+ *                             value:
+ *                               type: number
+ *                       timeline30d:
+ *                         type: array
+ *                         items:
+ *                           type: object
+ *                           properties:
+ *                             timestamp:
+ *                               type: string
+ *                               format: date-time
+ *                             value:
+ *                               type: number
+ */
+app.get('/api/stats/requests', async (req, res) => {
+  try {
+    const appIds = req.query.appIds ? req.query.appIds.split(',').filter(id => id.trim()) : []
+    const stats = await getRequestStats(appIds)
+    res.json({ data: stats })
   } catch (error) {
     res.status(500).json({ error: error.message })
   }

@@ -206,7 +206,48 @@
 
 ---
 
-## 7. 优化建议（Optimization Suggestion）
+## 7. 统计（Stats）
+
+### 获取请求统计
+`GET /api/stats/requests?appIds=app_1,app_2`
+
+- `appIds`：可选，逗号分隔的应用 ID 列表；为空时统计所有应用。
+
+返回示例：
+```json
+{
+  "data": {
+    "app_1": {
+      "appId": "app_1",
+      "count24h": 128,
+      "count7d": 860,
+      "count30d": 3520,
+      "timeline24h": [
+        { "timestamp": "2025-02-01T10:00:00.000Z", "value": 6 },
+        { "timestamp": "2025-02-01T11:00:00.000Z", "value": 8 }
+        // ...
+      ],
+      "timeline7d": [
+        { "timestamp": "2025-01-27T00:00:00.000Z", "value": 120 }
+        // ...
+      ],
+      "timeline30d": [
+        { "timestamp": "2025-01-03T00:00:00.000Z", "value": 95 }
+        // ...
+      ]
+    }
+  }
+}
+```
+
+> **说明**
+> - `timeline24h` 以小时为粒度返回最近 24 小时的请求数。
+> - `timeline7d` / `timeline30d` 以天为粒度返回最近 7/30 天的请求趋势。
+> - 当 `appIds` 为空时，所有应用都会返回；指定 ID 时若无数据，也会返回计数为 0 的结构。
+
+---
+
+## 8. 优化建议（Optimization Suggestion）
 
 ### 查询建议
 `GET /api/optimization-suggestions?appId=app_123&status=pending`
@@ -222,7 +263,7 @@
 
 ---
 
-## 8. 典型流程
+## 9. 典型流程
 
 1. **记录问答**：外部系统调用 `POST /api/query-records` 注入问答日志
 2. **收集反馈**：人工/AI 调用 `POST /api/feedbacks`
@@ -232,7 +273,7 @@
 
 ---
 
-## 9. 示例：创建问答记录并提交反馈
+## 10. 示例：创建问答记录并提交反馈
 
 ```bash
 # 创建问答记录
@@ -258,7 +299,7 @@ curl -X POST http://localhost:10001/api/feedbacks \
 
 ---
 
-## 10. 相关资源
+## 11. 相关资源
 
 - **交互式 API 文档**：http://localhost:10001/api-docs（Swagger UI，推荐使用）
 - **数据模型定义**：`docs/PROJECT_OVERVIEW.md`、`docs/design.md`

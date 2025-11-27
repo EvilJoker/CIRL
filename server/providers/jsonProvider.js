@@ -1,4 +1,10 @@
 import { BaseProvider } from './baseProvider.js'
+import {
+  getTimelineConfigs,
+  ensureStatsEntry,
+  assignTimelineFromMap,
+  incrementBucket
+} from './statsUtils.js'
 import { fileURLToPath } from 'url'
 import { dirname, join } from 'path'
 import { existsSync } from 'fs'
@@ -7,6 +13,14 @@ import fs from 'fs/promises'
 const __filename = fileURLToPath(import.meta.url)
 const __dirname = dirname(__filename)
 const dataDir = join(__dirname, '..', '..', 'data')
+const STATS_CACHE_TTL_MS = 5 * 60 * 1000
+
+function createStatsCacheKey(appIds = []) {
+  if (!appIds || appIds.length === 0) {
+    return 'all'
+  }
+  return [...appIds].sort().join(',')
+}
 
 // ========== 文件锁机制 ==========
 const fileLocks = new Map()
@@ -101,6 +115,11 @@ async function saveJSONFile(filename, data) {
  * JSON 文件 Provider
  */
 export class JsonProvider extends BaseProvider {
+  constructor() {
+    super()
+    // 统计缓存：不持久化，内存保留 5 分钟
+    this.statsCache = null
+  }
   // ========== 应用（App）管理 ==========
   async readApps() {
     return readJSONFile('apps.json')
@@ -163,5 +182,74 @@ export class JsonProvider extends BaseProvider {
   async saveOptimizationSuggestions(suggestions) {
     return saveJSONFile('optimization-suggestions.json', suggestions)
   }
+
+  // ========== 统计（Stats）==========
+  /**
+   * 获取请求统计信息（实时计算，命中缓存则复用）
+   * @param {string[]} appIds - 应用ID列表，为空则统计所有应用
+   * @returns {Promise<Object>} 统计信息
+   */
+  async getRequestStats(appIds = []) {
+    const cacheKey = createStatsCacheKey(appIds)
+    const cacheTimestamp = Date.now()
+    if (this.statsCache && this.statsCache.key === cacheKey && this.statsCache.expiresAt > cacheTimestamp) {
+      return this.statsCache.data
+    }
+
+    const allRecords = await this.readQueryRecords()
+
+    const referenceTime = new Date()
+    const timelineConfigs = getTimelineConfigs(referenceTime)
+
+    // 过滤记录
+    let filteredRecords = allRecords.filter(r => !r.ignored)
+    if (appIds.length > 0) {
+      filteredRecords = filteredRecords.filter(r => appIds.includes(r.appId))
+    }
+
+    const result = {}
+
+    for (const record of filteredRecords) {
+      const appId = record.appId
+      const entry = ensureStatsEntry(result, appId)
+
+      const createdAt = new Date(record.createdAt)
+
+      for (const config of timelineConfigs) {
+        if (createdAt >= config.since) {
+          entry[config.countKey]++
+        }
+      }
+    }
+
+    // 如果指定了 appIds，确保所有应用都有统计（即使为0）
+    if (appIds.length > 0) {
+      for (const appId of appIds) {
+        ensureStatsEntry(result, appId)
+      }
+    }
+
+    for (const config of timelineConfigs) {
+      const valueMap = new Map()
+      for (const record of filteredRecords) {
+        const createdAt = new Date(record.createdAt)
+        if (createdAt < config.since) continue
+        const bucketDate = config.alignFn(new Date(createdAt))
+        const bucketIso = bucketDate.toISOString()
+        incrementBucket(valueMap, record.appId, bucketIso)
+      }
+
+      assignTimelineFromMap(result, appIds, config.timelineKey, config.buckets, valueMap)
+    }
+
+    this.statsCache = {
+      key: cacheKey,
+      data: result,
+      expiresAt: cacheTimestamp + STATS_CACHE_TTL_MS
+    }
+
+    return result
+  }
 }
+
 

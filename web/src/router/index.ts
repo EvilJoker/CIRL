@@ -1,5 +1,6 @@
 import { createRouter, createWebHistory } from 'vue-router'
 import AppManagementPage from '@/pages/AppManagementPage.vue'
+import DashboardPage from '@/pages/DashboardPage.vue'
 import QATrackingPage from '@/pages/QATrackingPage.vue'
 import QAManagementPage from '@/pages/QAManagementPage.vue'
 import FeedbackManagementPage from '@/pages/FeedbackManagementPage.vue'
@@ -13,6 +14,7 @@ const router = createRouter({
   routes: [
     { path: '/', name: 'home', redirect: '/qa-tracking' },
     { path: '/apps', name: 'apps', component: AppManagementPage },
+    { path: '/dashboard', name: 'dashboard', component: DashboardPage },
     { path: '/qa-tracking', name: 'qa-tracking', component: QATrackingPage },
     { path: '/qa-management', name: 'qa-management', component: QAManagementPage },
     { path: '/feedbacks', name: 'feedbacks', component: FeedbackManagementPage },

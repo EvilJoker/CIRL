@@ -1,5 +1,6 @@
 import { BaseProvider } from './baseProvider.js'
 import { WriteBuffer } from './writeBuffer.js'
+import { getTimelineConfigs, ensureStatsEntry, assignTimelineFromMap, upsertValue } from './statsUtils.js'
 import initSqlJs from 'sql.js'
 import { fileURLToPath } from 'url'
 import { dirname, join } from 'path'
@@ -10,6 +11,14 @@ const __filename = fileURLToPath(import.meta.url)
 const __dirname = dirname(__filename)
 const dbPath = join(__dirname, '..', '..', 'data', 'cirl.db')
 const dataDir = join(__dirname, '..', '..', 'data')
+const STATS_CACHE_TTL_MS = 5 * 60 * 1000
+
+function createStatsCacheKey(appIds = []) {
+  if (!appIds || appIds.length === 0) {
+    return 'all'
+  }
+  return [...appIds].sort().join(',')
+}
 
 /**
  * SQLite Provider（使用 sql.js，纯 JavaScript，无需编译）
@@ -35,6 +44,9 @@ export class SqliteProvider extends BaseProvider {
     this.pendingSaveOperations = []
     this.saveTimer = null
     this.saveInterval = 2000 // 2秒保存一次数据库文件
+
+    // 统计缓存：不持久化，内存保留 5 分钟
+    this.statsCache = null
   }
 
   /**
@@ -881,6 +893,105 @@ export class SqliteProvider extends BaseProvider {
     }
 
     this.executeBatch(operations)
+  }
+
+  // ========== 统计（Stats）==========
+  /**
+   * 获取请求统计信息（带 5 分钟内存缓存）
+   * @param {string[]} appIds - 应用ID列表，为空则统计所有应用
+   * @returns {Promise<Object>} 统计信息
+   */
+  async getRequestStats(appIds = []) {
+    const cacheKey = createStatsCacheKey(appIds)
+    const cacheTimestamp = Date.now()
+
+    await this.ensureInitialized()
+
+    if (this.statsCache && this.statsCache.key === cacheKey && this.statsCache.expiresAt > cacheTimestamp) {
+      return this.statsCache.data
+    }
+
+    // 刷新缓冲区，确保数据最新
+    await this.queryRecordsBuffer.flush()
+
+    const referenceTime = new Date()
+    const timelineConfigs = getTimelineConfigs(referenceTime)
+
+    // 构建 WHERE 条件
+    // 注意：每个查询的时间条件不同，需要分别构建
+    const buildWhereClause = (appIds, timeParam) => {
+      const conditions = []
+      const params = []
+
+      if (appIds.length > 0) {
+        const placeholders = appIds.map(() => '?').join(',')
+        conditions.push(`app_id IN (${placeholders})`)
+        params.push(...appIds)
+      }
+
+      conditions.push('created_at >= ?')
+      params.push(timeParam)
+
+      conditions.push('ignored = 0')
+
+      return {
+        whereClause: conditions.length > 0 ? `WHERE ${conditions.join(' AND ')}` : '',
+        params
+      }
+    }
+
+    const result = {}
+
+    for (const config of timelineConfigs) {
+      const clause = buildWhereClause(appIds, config.sinceIso)
+      config.whereClause = clause.whereClause
+      config.params = clause.params
+
+      const rows = this.queryAll(`
+        SELECT app_id, COUNT(*) as count
+        FROM query_records
+        ${config.whereClause}
+        GROUP BY app_id
+      `, config.params)
+
+      for (const row of rows) {
+        const entry = ensureStatsEntry(result, row.app_id)
+        entry[config.countKey] = row.count || 0
+      }
+    }
+
+    if (appIds.length > 0) {
+      for (const appId of appIds) {
+        ensureStatsEntry(result, appId)
+      }
+    }
+
+    for (const config of timelineConfigs) {
+      const timelineRows = this.queryAll(`
+        SELECT app_id,
+          strftime('${config.strftimeFormat}', datetime(created_at, 'utc')) as bucket,
+          COUNT(*) as count
+        FROM query_records
+        ${config.whereClause}
+        GROUP BY app_id, bucket
+      `, config.params)
+
+      const valueMap = new Map()
+      for (const row of timelineRows) {
+        if (!row.bucket) continue
+        upsertValue(valueMap, row.app_id, row.bucket, row.count || 0)
+      }
+
+      assignTimelineFromMap(result, appIds, config.timelineKey, config.buckets, valueMap)
+    }
+
+    this.statsCache = {
+      key: cacheKey,
+      data: result,
+      expiresAt: cacheTimestamp + STATS_CACHE_TTL_MS
+    }
+
+    return result
   }
 
   /**

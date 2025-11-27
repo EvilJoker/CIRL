@@ -66,6 +66,16 @@ export class BaseProvider {
     throw new Error('saveOptimizationSuggestions() must be implemented')
   }
 
+  // ========== 统计（Stats）==========
+  /**
+   * 获取请求统计信息
+   * @param {string[]} appIds - 应用ID列表，为空则统计所有应用
+   * @returns {Promise<Object>} 统计信息，包含24小时、7天、30天的请求次数
+   */
+  async getRequestStats(appIds = []) {
+    throw new Error('getRequestStats() must be implemented')
+  }
+
   /**
    * 初始化 Provider（如果需要）
    */

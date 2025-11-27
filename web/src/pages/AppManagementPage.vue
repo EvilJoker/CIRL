@@ -34,9 +34,25 @@
               <p v-if="app.description" class="text-sm text-muted-foreground mt-1">
                 {{ app.description }}
               </p>
-              <p class="text-xs text-muted-foreground mt-2">
-                创建时间: {{ formatDate(app.createdAt) }}
-              </p>
+              <div class="mt-2 space-y-1">
+                <p class="text-xs text-muted-foreground">
+                  创建时间: {{ formatDate(app.createdAt) }}
+                </p>
+                <div class="flex items-center gap-4 text-xs">
+                  <div class="flex items-center gap-1">
+                    <span class="text-muted-foreground">24小时:</span>
+                    <span class="font-semibold">{{ getRequestCount(app.id, '24h') }}</span>
+                  </div>
+                  <div class="flex items-center gap-1">
+                    <span class="text-muted-foreground">7天:</span>
+                    <span class="font-semibold">{{ getRequestCount(app.id, '7d') }}</span>
+                  </div>
+                  <div class="flex items-center gap-1">
+                    <span class="text-muted-foreground">30天:</span>
+                    <span class="font-semibold">{{ getRequestCount(app.id, '30d') }}</span>
+                  </div>
+                </div>
+              </div>
             </div>
             <div class="flex gap-2">
               <Button size="sm" variant="outline" @click="editApp(app)">
@@ -78,7 +94,7 @@
 
 <script setup lang="ts">
 import { ref, onMounted } from 'vue'
-import { fetchApps, createApp, updateApp, deleteApp as deleteAppApi } from '@/lib/api'
+import { fetchApps, createApp, updateApp, deleteApp as deleteAppApi, fetchRequestStats, type RequestStats } from '@/lib/api'
 import { formatDate } from '@/lib/utils'
 import type { App } from '@/types'
 import { Card } from '@/components/ui/card'
@@ -88,6 +104,7 @@ import { Textarea } from '@/components/ui/textarea'
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 
 const apps = ref<App[]>([])
+const stats = ref<Record<string, RequestStats>>({})
 const loading = ref(false)
 const showCreateModal = ref(false)
 const editingApp = ref<App | null>(null)
@@ -97,10 +114,30 @@ async function loadApps() {
   loading.value = true
   try {
     apps.value = await fetchApps()
+    // 加载统计数据
+    if (apps.value.length > 0) {
+      const appIds = apps.value.map(app => app.id)
+      stats.value = await fetchRequestStats(appIds)
+    }
   } catch (error) {
     console.error('Failed to load apps:', error)
   } finally {
     loading.value = false
+  }
+}
+
+function getRequestCount(appId: string, period: '24h' | '7d' | '30d'): number {
+  const stat = stats.value[appId]
+  if (!stat) return 0
+  switch (period) {
+    case '24h':
+      return stat.count24h
+    case '7d':
+      return stat.count7d
+    case '30d':
+      return stat.count30d
+    default:
+      return 0
   }
 }
 

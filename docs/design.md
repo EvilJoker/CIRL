@@ -208,6 +208,7 @@ App (1) ──< (N) OptimizationSuggestion
 - **图标**：lucide-vue-next
 - **路由**：vue-router
 - **状态管理**：@vueuse/core（轻量级，按需引入）
+- **数据可视化**：ECharts、vue-echarts、@unovis/vue（折线图、交互式十字准星、Tooltip、趋势图例等）
 
 ### 3.2 后端技术栈
 
@@ -274,6 +275,10 @@ App (1) ──< (N) OptimizationSuggestion
 
 ```
 CIRL Console
+├── 仪表盘 (Dashboard)
+│   ├── 应用选择 / 时间范围切换
+│   ├── 请求总览（24h / 7d / 30d）
+│   └── 趋势图（折线图 + Tooltip + Crosshair）
 ├── 应用管理 (App Management)
 │   ├── 应用列表
 │   ├── 创建应用
@@ -310,12 +315,20 @@ CIRL Console
 
 ### 5.3 关键交互
 
+- **仪表盘**：选择应用与时间范围，查看实时请求总数与趋势图，支持 Tooltip、图例开关与十字准星对齐
 - **问答记录**：列表展示，支持按应用、时间范围筛选
 - **应用选择**：所有页面支持按应用筛选
 - **反馈提交**：在问答记录详情页直接提交反馈
 - **数据集构建**：多选问答记录，批量创建数据集
 - **命中分析**：选择应用、数据集、时间范围，一键生成分析报告
 - **效果评估**：选择应用、数据集、时间范围，生成评估报告，支持优化前后对比
+
+### 5.4 仪表盘页面说明
+
+- **数据来源**：基于后端 `/api/stats/requests` 接口实时计算（不缓存）。
+- **展示内容**：近 24 小时、7 天、30 天的请求总量、趋势折线、单点 Tooltip。
+- **组件组合**：`ChartContainer` 提供主题上下文，内嵌 `ChartLegendContent`、`ChartTooltip( Content )`、`ChartCrosshair` 等复用组件。
+- **导航入口**：Sidebar 顶部的 “Dashboard” 菜单，便于快速查看整体运行健康度。
 
 ## 六、数据策略
 

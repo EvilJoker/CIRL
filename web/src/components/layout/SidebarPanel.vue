@@ -59,6 +59,7 @@ import {
 } from '@/components/ui/sidebar'
 import {
   Database,
+  LayoutDashboard,
   MessageSquare,
   ClipboardList,
   MessageCircle,
@@ -72,6 +73,7 @@ const route = useRoute()
 
 type RouteTab =
   | 'apps'
+  | 'dashboard'
   | 'qa-tracking'
   | 'qa-management'
   | 'feedbacks'
@@ -87,6 +89,7 @@ const currentTab = computed<RouteTab>(() => {
 
 const navItems = [
   { id: 'apps', label: 'APP 管理', icon: Database },
+  { id: 'dashboard', label: 'Dashboard', icon: LayoutDashboard },
   { id: 'qa-tracking', label: 'QA 跟踪', icon: MessageSquare },
   { id: 'qa-management', label: 'QA 管理', icon: ClipboardList },
   { id: 'feedbacks', label: 'Feedback 管理', icon: MessageCircle },

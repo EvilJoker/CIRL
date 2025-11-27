@@ -53,6 +53,10 @@ const options = {
       {
         name: 'OptimizationSuggestions',
         description: '优化建议 API'
+      },
+      {
+        name: 'Stats',
+        description: '统计 API'
       }
     ],
     components: {

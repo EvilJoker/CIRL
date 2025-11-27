@@ -20,6 +20,7 @@
 | 数据集管理 | 将问答记录沉淀为数据集，作为命中与评估的基准 |
 | 命中分析 | 统计完全命中/80%/60%/未命中，辅助运维定位问题 |
 | 效果评估 | 按数据集对比优化前后准确性与响应速度，验证优化结果 |
+| 仪表盘统计 | 基于 `/api/stats/requests` 实时汇总 24h/7d/30d 请求量与趋势，快速洞察健康状况 |
 
 ## 3. 架构概览
 
@@ -150,6 +151,7 @@ interface OptimizationSuggestion {
 | Hit Analysis | GET/POST | `/api/hit-analyses` | 命中分析任务与统计 |
 | Evaluations | GET/POST | `/api/evaluations` | 效果评估与前后对比 |
 | Suggestions | GET/PUT | `/api/optimization-suggestions` | 优化建议跟踪 |
+| Stats | GET | `/api/stats/requests` | 请求统计（appIds 查询、24h/7d/30d 计数与时间线） |
 
 **API 文档**：
 - 交互式文档（推荐）：http://localhost:10001/api-docs（Swagger UI）
@@ -157,7 +159,7 @@ interface OptimizationSuggestion {
 
 ## 6. 前端布局
 
-- **Sidebar 导航**：应用管理 / QA 跟踪 / QA 管理 / 反馈管理 / QA 数据集 / Tag 管理 / 命中分析 / 效果评估
+- **Sidebar 导航**：Dashboard / 应用管理 / QA 跟踪 / QA 管理 / 反馈管理 / QA 数据集 / Tag 管理 / 命中分析 / 效果评估
 - **应用管理**：列表 + Dialog 创建/编辑
 - **QA 跟踪**：按应用 + 时间范围筛选、列表展示、录入记录、提交反馈
 - **QA 管理**：问答记录的集中管理和标记
@@ -166,6 +168,7 @@ interface OptimizationSuggestion {
 - **Tag 管理**：标签的统一管理
 - **命中分析**：选择应用 + 数据集 + 时间区间，统计命中分布
 - **效果评估**：选择数据集，计算准确性/速度指标，对比优化前后
+- **仪表盘**：聚合请求统计、趋势折线、时间范围切换，作为运营入口
 
 ## 7. 数据文件
 

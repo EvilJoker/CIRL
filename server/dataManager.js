@@ -89,3 +89,12 @@ export async function saveOptimizationSuggestions(suggestions) {
   const p = await getProviderInstance()
   return p.saveOptimizationSuggestions(suggestions)
 }
+
+// ========== 统计（Stats）==========
+export async function getRequestStats(appIds = []) {
+  const p = await getProviderInstance()
+  if (typeof p.getRequestStats !== 'function') {
+    throw new Error('Current provider does not implement getRequestStats')
+  }
+  return p.getRequestStats(appIds)
+}
