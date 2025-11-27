@@ -90,6 +90,17 @@ export async function saveOptimizationSuggestions(suggestions) {
   return p.saveOptimizationSuggestions(suggestions)
 }
 
+// ========== 模型（ModelConfig）管理 ==========
+export async function readModels() {
+  const p = await getProviderInstance()
+  return p.readModels()
+}
+
+export async function saveModels(models) {
+  const p = await getProviderInstance()
+  return p.saveModels(models)
+}
+
 // ========== 统计（Stats）==========
 export async function getRequestStats(appIds = []) {
   const p = await getProviderInstance()

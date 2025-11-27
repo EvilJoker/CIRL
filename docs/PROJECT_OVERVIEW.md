@@ -18,9 +18,10 @@
 | 问答跟踪 | 记录每一次问答 input/output、模型信息、时间区间 |
 | 反馈闭环 | 收集/处理反馈，AI 分析后生成优化建议，形成闭环 |
 | 数据集管理 | 将问答记录沉淀为数据集，作为命中与评估的基准 |
-| 命中分析 | 统计完全命中/80%/60%/未命中，辅助运维定位问题 |
+| 命中分析 | 统计完全命中/80%/60%/未命中，支持 24h/7d/30d 时间窗口 |
 | 效果评估 | 按数据集对比优化前后准确性与响应速度，验证优化结果 |
 | 仪表盘统计 | 基于 `/api/stats/requests` 实时汇总 24h/7d/30d 请求量与趋势，快速洞察健康状况 |
+| 模型管理 | 维护 OpenAI 兼容模型配置，供命中分析等场景复用 |
 
 ## 3. 架构概览
 
@@ -149,6 +150,7 @@ interface OptimizationSuggestion {
 | Feedbacks | GET/POST/PUT | `/api/feedbacks` | 反馈收集、处理与优化建议 |
 | Datasets | GET/POST/PUT/DELETE | `/api/datasets` | 数据集管理 |
 | Hit Analysis | GET/POST | `/api/hit-analyses` | 命中分析任务与统计 |
+| Models | GET/POST/PUT/DELETE | `/api/models` | 模型配置管理 |
 | Evaluations | GET/POST | `/api/evaluations` | 效果评估与前后对比 |
 | Suggestions | GET/PUT | `/api/optimization-suggestions` | 优化建议跟踪 |
 | Stats | GET | `/api/stats/requests` | 请求统计（appIds 查询、24h/7d/30d 计数与时间线） |

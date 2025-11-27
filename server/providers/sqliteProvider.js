@@ -102,6 +102,8 @@ export class SqliteProvider extends BaseProvider {
     // 启用外键约束
     this.db.run('PRAGMA foreign_keys = ON')
 
+    this.ensureModelsTable()
+
     // 检查表是否存在，如果不存在则初始化 schema
     const tablesExist = this.checkTablesExist()
     if (!tablesExist) {
@@ -325,6 +327,25 @@ export class SqliteProvider extends BaseProvider {
     this.db.run(`CREATE INDEX IF NOT EXISTS idx_optimization_suggestions_app_id ON optimization_suggestions(app_id)`)
     this.db.run(`CREATE INDEX IF NOT EXISTS idx_optimization_suggestions_status ON optimization_suggestions(status)`)
     this.db.run(`CREATE INDEX IF NOT EXISTS idx_optimization_suggestions_source ON optimization_suggestions(source)`)
+
+    this.ensureModelsTable()
+  }
+
+  ensureModelsTable() {
+    if (!this.db) return
+    this.db.run(`
+      CREATE TABLE IF NOT EXISTS models (
+        id TEXT PRIMARY KEY,
+        name TEXT NOT NULL,
+        provider TEXT NOT NULL,
+        base_url TEXT,
+        api_key TEXT,
+        model TEXT NOT NULL,
+        metadata TEXT,
+        created_at TEXT NOT NULL,
+        updated_at TEXT NOT NULL
+      )
+    `)
   }
 
   // ========== 辅助函数 ==========
@@ -728,7 +749,7 @@ export class SqliteProvider extends BaseProvider {
       matchType: row.match_type,
       similarity: row.similarity,
       matchedQueryRecordId: row.matched_query_record_id || undefined,
-      analysisResult: row.analysis_result || undefined,
+      analysisResult: this.deserializeJSON(row.analysis_result) || row.analysis_result || undefined,
       createdAt: row.created_at
     }))
   }
@@ -739,6 +760,11 @@ export class SqliteProvider extends BaseProvider {
 
     // 使用 UPSERT 策略（INSERT OR REPLACE）
     for (const analysis of hitAnalyses) {
+      const analysisResultValue =
+        analysis.analysisResult && typeof analysis.analysisResult === 'object'
+          ? this.serializeJSON(analysis.analysisResult)
+          : analysis.analysisResult || null
+
       operations.push({
         sql: `INSERT OR REPLACE INTO hit_analyses (
           id, query_record_id, dataset_id, match_type, similarity,
@@ -751,7 +777,7 @@ export class SqliteProvider extends BaseProvider {
           analysis.matchType,
           analysis.similarity,
           analysis.matchedQueryRecordId || null,
-          analysis.analysisResult || null,
+          analysisResultValue,
           analysis.createdAt
         ]
       })
@@ -888,6 +914,61 @@ export class SqliteProvider extends BaseProvider {
           suggestion.result || null,
           suggestion.createdAt,
           suggestion.updatedAt
+        ]
+      })
+    }
+
+    this.executeBatch(operations)
+  }
+
+  // ========== 模型（ModelConfig）管理 ==========
+  async readModels() {
+    await this.ensureInitialized()
+    this.ensureModelsTable()
+    const rows = this.queryAll('SELECT * FROM models ORDER BY created_at DESC')
+    return rows.map(row => ({
+      id: row.id,
+      name: row.name,
+      provider: row.provider,
+      baseUrl: row.base_url || '',
+      apiKey: row.api_key || '',
+      model: row.model,
+      metadata: this.deserializeJSON(row.metadata),
+      createdAt: row.created_at,
+      updatedAt: row.updated_at
+    }))
+  }
+
+  async saveModels(models) {
+    await this.ensureInitialized()
+    this.ensureModelsTable()
+    const operations = []
+
+    if (models.length === 0) {
+      operations.push({ sql: 'DELETE FROM models', params: [] })
+    } else {
+      const placeholders = models.map(() => '?').join(',')
+      operations.push({
+        sql: `DELETE FROM models WHERE id NOT IN (${placeholders})`,
+        params: models.map(m => m.id)
+      })
+    }
+
+    for (const model of models) {
+      operations.push({
+        sql: `INSERT OR REPLACE INTO models (
+          id, name, provider, base_url, api_key, model, metadata, created_at, updated_at
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+        params: [
+          model.id,
+          model.name,
+          model.provider,
+          model.baseUrl || null,
+          model.apiKey || null,
+          model.model,
+          this.serializeJSON(model.metadata || null),
+          model.createdAt,
+          model.updatedAt
         ]
       })
     }

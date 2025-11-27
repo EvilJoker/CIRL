@@ -57,6 +57,10 @@ const options = {
       {
         name: 'Stats',
         description: '统计 API'
+      },
+      {
+        name: 'Models',
+        description: '模型配置 API'
       }
     ],
     components: {
@@ -312,8 +316,21 @@ const options = {
               description: '匹配到的数据集中的问答记录ID'
             },
             analysisResult: {
-              type: 'string',
-              description: 'AI 分析结果'
+              type: 'object',
+              description: '分析元数据',
+              properties: {
+                range: {
+                  type: 'string',
+                  enum: ['24h', '7d', '30d']
+                },
+                modelId: {
+                  type: 'string'
+                },
+                appId: {
+                  type: 'string'
+                }
+              },
+              additionalProperties: true
             },
             createdAt: {
               type: 'string',
@@ -440,6 +457,51 @@ const options = {
             result: {
               type: 'string',
               description: '应用结果'
+            },
+            createdAt: {
+              type: 'string',
+              format: 'date-time'
+            },
+            updatedAt: {
+              type: 'string',
+              format: 'date-time'
+            }
+          }
+        },
+        ModelConfig: {
+          type: 'object',
+          required: ['id', 'name', 'model', 'provider', 'createdAt', 'updatedAt'],
+          properties: {
+            id: {
+              type: 'string',
+              example: 'model_1234567890'
+            },
+            name: {
+              type: 'string',
+              description: '模型配置名称'
+            },
+            provider: {
+              type: 'string',
+              description: '模型来源',
+              example: 'openai'
+            },
+            baseUrl: {
+              type: 'string',
+              description: '请求 Base URL',
+              example: 'https://api.openai.com/v1'
+            },
+            apiKey: {
+              type: 'string',
+              description: 'API 密钥（仅用于当前环境）'
+            },
+            model: {
+              type: 'string',
+              description: '模型 ID',
+              example: 'gpt-4o-mini'
+            },
+            metadata: {
+              type: 'object',
+              additionalProperties: true
             },
             createdAt: {
               type: 'string',

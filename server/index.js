@@ -18,6 +18,8 @@ import {
   saveEvaluations,
   readOptimizationSuggestions,
   saveOptimizationSuggestions,
+  readModels,
+  saveModels,
   getRequestStats
 } from './dataManager.js'
 import { calculateSimilarity, getMatchType } from './similarityService.js'
@@ -26,6 +28,12 @@ import { swaggerSpec } from './swagger.js'
 
 const __filename = fileURLToPath(import.meta.url)
 const __dirname = dirname(__filename)
+
+const HIT_ANALYSIS_WINDOWS = {
+  '24h': 24 * 60 * 60 * 1000,
+  '7d': 7 * 24 * 60 * 60 * 1000,
+  '30d': 30 * 24 * 60 * 60 * 1000
+}
 
 const app = express()
 const PORT = process.env.PORT || 10001
@@ -42,85 +50,156 @@ app.use('/api-docs', swaggerUi.serve, swaggerUi.setup(swaggerSpec, {
 // 静态文件服务（前端构建产物）
 app.use(express.static(join(__dirname, '..', 'dist')))
 
-function updateRecordAnalysisMetadata(record, matchType, similarity, analyzedAt) {
+function updateRecordAnalysisMetadata(record, matchType, similarity, analyzedAt, extra = {}) {
   record.metadata = {
     ...(record.metadata || {}),
     lastAnalyzedAt: analyzedAt,
     lastMatchType: matchType,
-    lastSimilarity: similarity
+    lastSimilarity: similarity,
+    lastAnalysisRange: extra.range || record.metadata?.lastAnalysisRange,
+    lastAnalysisModelId: extra.modelId || record.metadata?.lastAnalysisModelId,
+    lastMatchedRecordId: extra.matchedQueryRecordId || record.metadata?.lastMatchedRecordId
   }
 }
 
-async function performHitAnalysisTask({ appId, datasetId, startDate, endDate, mode = 'full' }) {
-  const datasets = await readDatasets()
-  const dataset = datasets.find(d => d.id === datasetId)
-  if (!dataset) {
-    throw new Error('Dataset not found')
+function parseAnalysisResultMetadata(value) {
+  if (!value) return {}
+  if (typeof value === 'object') return value
+  try {
+    return JSON.parse(value)
+  } catch {
+    return {}
   }
+}
+
+async function performHitAnalysisTask({ appId, range, modelId }) {
+  if (!HIT_ANALYSIS_WINDOWS[range]) {
+    throw new Error('Invalid time range')
+  }
+
+  const windowMs = HIT_ANALYSIS_WINDOWS[range]
+  const now = new Date()
+  const startDate = new Date(now.getTime() - windowMs)
 
   const allRecords = await readQueryRecords()
-  const datasetRecords = allRecords.filter(r => dataset.queryRecordIds.includes(r.id))
-  if (datasetRecords.length === 0) {
-    return { count: 0, analyses: [], message: 'Dataset has no QA records' }
-  }
+  const sourceRecords = allRecords.filter(r => {
+    if (r.appId !== appId) return false
+    if (r.curated) return false
+    if (r.ignored) return false
+    const createdAt = new Date(r.createdAt)
+    return createdAt >= startDate
+  })
+  const curatedRecords = allRecords.filter(r => r.appId === appId && r.curated)
 
-  let queryRecords = allRecords.filter(r => r.appId === appId)
-  if (startDate) {
-    queryRecords = queryRecords.filter(r => new Date(r.createdAt) >= new Date(startDate))
-  }
-  if (endDate) {
-    queryRecords = queryRecords.filter(r => new Date(r.createdAt) <= new Date(endDate))
-  }
-
-  if (queryRecords.length === 0) {
-    return { count: 0, analyses: [] }
+  if (sourceRecords.length === 0 || curatedRecords.length === 0) {
+    return {
+      count: 0,
+      analyses: [],
+      summary: { exact: 0, high: 0, medium: 0, none: sourceRecords.length },
+      range,
+      startDate: startDate.toISOString(),
+      endDate: now.toISOString()
+    }
   }
 
   const hitAnalyses = await readHitAnalyses()
   const newAnalyses = []
+  const curatedMap = new Map(curatedRecords.map(record => [record.id, record]))
+  const curatedSnapshots = new Map()
+  const sourceIdSet = new Set(sourceRecords.map(r => r.id))
 
-  for (const record of queryRecords) {
-    if (mode === 'incremental') {
-      const alreadyAnalyzed = hitAnalyses.some(a => a.datasetId === datasetId && a.queryRecordId === record.id)
-      if (alreadyAnalyzed) {
-        continue
-      }
+  // 移除同一时间范围内的旧分析结果，避免重复统计
+  const retainedAnalyses = hitAnalyses.filter(analysis => {
+    if (!sourceIdSet.has(analysis.queryRecordId)) {
+      return true
     }
+    const meta = parseAnalysisResultMetadata(analysis.analysisResult)
+    return meta.range !== range || meta.appId !== appId
+  })
 
+  const summary = { exact: 0, high: 0, medium: 0, none: 0, total: 0 }
+
+  for (const record of sourceRecords) {
     let maxSimilarity = 0
     let matchedRecordId = null
-    for (const datasetRecord of datasetRecords) {
-      const similarity = calculateSimilarity(record.input, datasetRecord.input)
+    for (const curated of curatedRecords) {
+      const similarity = calculateSimilarity(record.input, curated.input)
       if (similarity > maxSimilarity) {
         maxSimilarity = similarity
-        matchedRecordId = datasetRecord.id
+        matchedRecordId = curated.id
       }
     }
 
     const matchType = getMatchType(maxSimilarity)
+    summary[matchType] += 1
+    summary.total += 1
+
     const analyzedAt = new Date().toISOString()
     const analysis = {
       id: `ha_${Date.now()}_${newAnalyses.length}`,
       queryRecordId: record.id,
-      datasetId,
+      datasetId: `qa_library:${appId}`,
       matchType,
       similarity: maxSimilarity,
-      matchedQueryRecordId: matchedRecordId,
+      matchedQueryRecordId: matchedRecordId || undefined,
+      analysisResult: {
+        range,
+        modelId: modelId || null,
+        appId
+      },
       createdAt: analyzedAt
     }
     newAnalyses.push(analysis)
-    updateRecordAnalysisMetadata(record, matchType, maxSimilarity, analyzedAt)
+    updateRecordAnalysisMetadata(record, matchType, maxSimilarity, analyzedAt, {
+      range,
+      modelId: modelId || null,
+      matchedQueryRecordId: matchedRecordId || null
+    })
+
+    if (matchedRecordId) {
+      if (!curatedSnapshots.has(matchedRecordId)) {
+        curatedSnapshots.set(matchedRecordId, {
+          exact: 0,
+          high: 0,
+          medium: 0,
+          none: 0,
+          total: 0
+        })
+      }
+      const stats = curatedSnapshots.get(matchedRecordId)
+      stats[matchType] += 1
+      stats.total += 1
+      stats.lastMatchedAt = analyzedAt
+    }
   }
 
-  if (newAnalyses.length === 0) {
-    return { count: 0, analyses: [] }
+  for (const [targetId, stats] of curatedSnapshots.entries()) {
+    const targetRecord = curatedMap.get(targetId)
+    if (!targetRecord) continue
+    const metadata = targetRecord.metadata || {}
+    const hitSnapshots = metadata.hitSnapshots || {}
+    hitSnapshots[range] = {
+      ...stats,
+      updatedAt: new Date().toISOString()
+    }
+    targetRecord.metadata = {
+      ...metadata,
+      hitSnapshots
+    }
   }
 
-  hitAnalyses.push(...newAnalyses)
-  await saveHitAnalyses(hitAnalyses)
+  const finalAnalyses = [...retainedAnalyses, ...newAnalyses]
+  await saveHitAnalyses(finalAnalyses)
   await saveQueryRecords(allRecords)
 
-  return { count: newAnalyses.length, analyses: newAnalyses }
+  return {
+    count: newAnalyses.length,
+    analyses: newAnalyses,
+    summary,
+    range,
+    startDate: startDate.toISOString(),
+    endDate: now.toISOString()
+  }
 }
 
 // ========== 应用（App）管理 API ==========
@@ -451,6 +530,11 @@ app.get('/api/stats/requests', async (req, res) => {
  *           type: boolean
  *         description: 是否已忽略
  *       - in: query
+ *         name: keyword
+ *         schema:
+ *           type: string
+ *         description: 关键字（匹配输入/输出）
+ *       - in: query
  *         name: page
  *         schema:
  *           type: integer
@@ -472,12 +556,19 @@ app.get('/api/stats/requests', async (req, res) => {
  */
 app.get('/api/query-records', async (req, res) => {
   try {
-    const { appId, startDate, endDate, curated, ignored, page = 1, pageSize = 20 } = req.query
+    const { appId, startDate, endDate, curated, ignored, keyword, page = 1, pageSize = 20 } = req.query
     let records = await readQueryRecords()
 
     // 筛选
     if (appId) {
       records = records.filter(r => r.appId === appId)
+    }
+    if (keyword) {
+      const lowerKeyword = keyword.toLowerCase()
+      records = records.filter(r =>
+        (r.input || '').toLowerCase().includes(lowerKeyword) ||
+        (r.output || '').toLowerCase().includes(lowerKeyword)
+      )
     }
     if (startDate) {
       records = records.filter(r => new Date(r.createdAt) >= new Date(startDate))
@@ -1237,8 +1328,8 @@ app.delete('/api/datasets/:id/records/:recordId', async (req, res) => {
  * @swagger
  * /api/hit-analyses:
  *   post:
- *     summary: 创建命中分析任务（全量）
- *     description: 对指定时间范围内的所有问答记录进行命中分析
+ *     summary: 运行命中分析
+ *     description: 按时间范围分析 QA 跟踪与 QA 管理之间的命中情况
  *     tags: [HitAnalyses]
  *     requestBody:
  *       required: true
@@ -1248,24 +1339,16 @@ app.delete('/api/datasets/:id/records/:recordId', async (req, res) => {
  *             type: object
  *             required:
  *               - appId
- *               - datasetId
- *               - startDate
- *               - endDate
+ *               - range
+ *               - modelId
  *             properties:
  *               appId:
  *                 type: string
- *                 example: app_1234567890
- *               datasetId:
+ *               range:
  *                 type: string
- *                 example: ds_1234567890
- *               startDate:
+ *                 enum: [24h, 7d, 30d]
+ *               modelId:
  *                 type: string
- *                 format: date
- *                 example: '2025-01-01'
- *               endDate:
- *                 type: string
- *                 format: date
- *                 example: '2025-01-31'
  *     responses:
  *       200:
  *         description: 分析完成
@@ -1276,84 +1359,27 @@ app.delete('/api/datasets/:id/records/:recordId', async (req, res) => {
  *               properties:
  *                 count:
  *                   type: integer
- *                   description: 分析的记录数
- *                 analyses:
- *                   type: array
- *                   items:
- *                     $ref: '#/components/schemas/HitAnalysis'
+ *                 summary:
+ *                   type: object
+ *                   properties:
+ *                     exact:
+ *                       type: integer
+ *                     high:
+ *                       type: integer
+ *                     medium:
+ *                       type: integer
+ *                     none:
+ *                       type: integer
  *       400:
  *         description: 请求参数错误
  */
 app.post('/api/hit-analyses', async (req, res) => {
   try {
-    const { appId, datasetId, startDate, endDate } = req.body
-    if (!appId || !datasetId || !startDate || !endDate) {
-      return res.status(400).json({ error: 'appId, datasetId, startDate, and endDate are required' })
+    const { appId, range, modelId } = req.body
+    if (!appId || !range || !modelId) {
+      return res.status(400).json({ error: 'appId, range, and modelId are required' })
     }
-    const result = await performHitAnalysisTask({ appId, datasetId, startDate, endDate, mode: 'full' })
-    res.json(result)
-  } catch (error) {
-    res.status(500).json({ error: error.message })
-  }
-})
-
-// 全量命中分析（显式）
-app.post('/api/hit-analyses/full', async (req, res) => {
-  try {
-    const { appId, datasetId, startDate, endDate } = req.body
-    if (!appId || !datasetId || !startDate || !endDate) {
-      return res.status(400).json({ error: 'appId, datasetId, startDate, and endDate are required' })
-    }
-    const result = await performHitAnalysisTask({ appId, datasetId, startDate, endDate, mode: 'full' })
-    res.json(result)
-  } catch (error) {
-    res.status(500).json({ error: error.message })
-  }
-})
-
-/**
- * @swagger
- * /api/hit-analyses/incremental:
- *   post:
- *     summary: 增量命中分析
- *     description: 仅分析尚未被处理的问答记录，适合每日巡检
- *     tags: [HitAnalyses]
- *     requestBody:
- *       required: true
- *       content:
- *         application/json:
- *           schema:
- *             type: object
- *             required:
- *               - appId
- *               - datasetId
- *             properties:
- *               appId:
- *                 type: string
- *               datasetId:
- *                 type: string
- *     responses:
- *       200:
- *         description: 分析完成
- *         content:
- *           application/json:
- *             schema:
- *               type: object
- *               properties:
- *                 count:
- *                   type: integer
- *                 analyses:
- *                   type: array
- *                   items:
- *                     $ref: '#/components/schemas/HitAnalysis'
- */
-app.post('/api/hit-analyses/incremental', async (req, res) => {
-  try {
-    const { appId, datasetId } = req.body
-    if (!appId || !datasetId) {
-      return res.status(400).json({ error: 'appId and datasetId are required' })
-    }
-    const result = await performHitAnalysisTask({ appId, datasetId, mode: 'incremental' })
+    const result = await performHitAnalysisTask({ appId, range, modelId })
     res.json(result)
   } catch (error) {
     res.status(500).json({ error: error.message })
@@ -1372,10 +1398,6 @@ app.post('/api/hit-analyses/incremental', async (req, res) => {
  *         schema:
  *           type: string
  *       - in: query
- *         name: datasetId
- *         schema:
- *           type: string
- *       - in: query
  *         name: startDate
  *         schema:
  *           type: string
@@ -1385,6 +1407,11 @@ app.post('/api/hit-analyses/incremental', async (req, res) => {
  *         schema:
  *           type: string
  *           format: date
+ *       - in: query
+ *         name: range
+ *         schema:
+ *           type: string
+ *           enum: [24h, 7d, 30d]
  *     responses:
  *       200:
  *         description: 命中分析结果列表
@@ -1400,11 +1427,14 @@ app.post('/api/hit-analyses/incremental', async (req, res) => {
  */
 app.get('/api/hit-analyses', async (req, res) => {
   try {
-    const { appId, datasetId, startDate, endDate } = req.query
+    const { appId, startDate, endDate, range } = req.query
     let analyses = await readHitAnalyses()
 
-    if (datasetId) {
-      analyses = analyses.filter(a => a.datasetId === datasetId)
+    if (range) {
+      analyses = analyses.filter(analysis => {
+        const meta = parseAnalysisResultMetadata(analysis.analysisResult)
+        return meta.range === range
+      })
     }
     if (appId || startDate || endDate) {
       const records = await readQueryRecords()
@@ -1441,10 +1471,6 @@ app.get('/api/hit-analyses', async (req, res) => {
  *         schema:
  *           type: string
  *       - in: query
- *         name: datasetId
- *         schema:
- *           type: string
- *       - in: query
  *         name: startDate
  *         schema:
  *           type: string
@@ -1454,6 +1480,11 @@ app.get('/api/hit-analyses', async (req, res) => {
  *         schema:
  *           type: string
  *           format: date
+ *       - in: query
+ *         name: range
+ *         schema:
+ *           type: string
+ *           enum: [24h, 7d, 30d]
  *     responses:
  *       200:
  *         description: 命中统计
@@ -1480,11 +1511,14 @@ app.get('/api/hit-analyses', async (req, res) => {
  */
 app.get('/api/hit-analyses/stats', async (req, res) => {
   try {
-    const { appId, datasetId, startDate, endDate } = req.query
+    const { appId, startDate, endDate, range } = req.query
     let analyses = await readHitAnalyses()
 
-    if (datasetId) {
-      analyses = analyses.filter(a => a.datasetId === datasetId)
+    if (range) {
+      analyses = analyses.filter(analysis => {
+        const meta = parseAnalysisResultMetadata(analysis.analysisResult)
+        return meta.range === range
+      })
     }
     if (appId || startDate || endDate) {
       const records = await readQueryRecords()
@@ -1832,6 +1866,146 @@ app.put('/api/optimization-suggestions/:id', async (req, res) => {
     }
     await saveOptimizationSuggestions(suggestions)
     res.json(suggestions[index])
+  } catch (error) {
+    res.status(500).json({ error: error.message })
+  }
+})
+
+// ========== 模型（ModelConfig）管理 ==========
+/**
+ * @swagger
+ * /api/models:
+ *   get:
+ *     summary: 获取模型配置
+ *     tags: [Models]
+ *     responses:
+ *       200:
+ *         description: 模型列表
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 data:
+ *                   type: array
+ *                   items:
+ *                     $ref: '#/components/schemas/ModelConfig'
+ */
+app.get('/api/models', async (req, res) => {
+  try {
+    const models = await readModels()
+    res.json({ data: models })
+  } catch (error) {
+    res.status(500).json({ error: error.message })
+  }
+})
+
+/**
+ * @swagger
+ * /api/models:
+ *   post:
+ *     summary: 创建模型配置
+ *     tags: [Models]
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             $ref: '#/components/schemas/ModelConfig'
+ *     responses:
+ *       200:
+ *         description: 创建成功
+ */
+app.post('/api/models', async (req, res) => {
+  try {
+    const models = await readModels()
+    const now = new Date().toISOString()
+    const newModel = {
+      id: `model_${Date.now()}`,
+      name: req.body.name || '新模型',
+      provider: req.body.provider || 'openai',
+      baseUrl: req.body.baseUrl || 'https://api.openai.com/v1',
+      apiKey: req.body.apiKey || '',
+      model: req.body.model || '',
+      metadata: req.body.metadata || {},
+      createdAt: now,
+      updatedAt: now
+    }
+    models.push(newModel)
+    await saveModels(models)
+    res.json(newModel)
+  } catch (error) {
+    res.status(500).json({ error: error.message })
+  }
+})
+
+/**
+ * @swagger
+ * /api/models/{id}:
+ *   put:
+ *     summary: 更新模型配置
+ *     tags: [Models]
+ *     parameters:
+ *       - in: path
+ *         name: id
+ *         required: true
+ *         schema:
+ *           type: string
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             $ref: '#/components/schemas/ModelConfig'
+ *     responses:
+ *       200:
+ *         description: 更新成功
+ */
+app.put('/api/models/:id', async (req, res) => {
+  try {
+    const models = await readModels()
+    const index = models.findIndex(model => model.id === req.params.id)
+    if (index === -1) {
+      return res.status(404).json({ error: 'Model not found' })
+    }
+    models[index] = {
+      ...models[index],
+      ...req.body,
+      id: req.params.id,
+      updatedAt: new Date().toISOString()
+    }
+    await saveModels(models)
+    res.json(models[index])
+  } catch (error) {
+    res.status(500).json({ error: error.message })
+  }
+})
+
+/**
+ * @swagger
+ * /api/models/{id}:
+ *   delete:
+ *     summary: 删除模型配置
+ *     tags: [Models]
+ *     parameters:
+ *       - in: path
+ *         name: id
+ *         required: true
+ *         schema:
+ *           type: string
+ *     responses:
+ *       200:
+ *         description: 删除完成
+ */
+app.delete('/api/models/:id', async (req, res) => {
+  try {
+    const models = await readModels()
+    const filtered = models.filter(model => model.id !== req.params.id)
+    if (filtered.length === models.length) {
+      return res.status(404).json({ error: 'Model not found' })
+    }
+    await saveModels(filtered)
+    res.json({ success: true })
   } catch (error) {
     res.status(500).json({ error: error.message })
   }

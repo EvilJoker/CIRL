@@ -124,22 +124,23 @@
 
 ## 5. 命中分析（Hit Analysis）
 
-### 创建命中分析任务
+命中分析现在直接对“QA 跟踪”（实时问答）与“QA 管理”（精选问题）进行比对，不再需要手动选择数据集。
+
+### 触发分析
 `POST /api/hit-analyses`
 ```json
 {
   "appId": "app_123",
-  "datasetId": "ds_1",
-  "startDate": "2025-01-01",
-  "endDate": "2025-01-31"
+  "range": "24h", // 支持 24h / 7d / 30d
+  "modelId": "model_001"
 }
 ```
 
 ### 获取分析结果
-`GET /api/hit-analyses?appId=app_123&datasetId=ds_1`
+`GET /api/hit-analyses?appId=app_123&range=24h`
 
 ### 获取命中统计
-`GET /api/hit-analyses/stats?appId=app_123&datasetId=ds_1&startDate=...&endDate=...`
+`GET /api/hit-analyses/stats?appId=app_123&range=24h`
 
 返回示例：
 ```json
@@ -247,7 +248,32 @@
 
 ---
 
-## 8. 优化建议（Optimization Suggestion）
+## 8. 模型配置（Model Config）
+
+### 获取模型
+`GET /api/models`
+
+### 创建模型
+`POST /api/models`
+```json
+{
+  "name": "OpenAI 默认模型",
+  "model": "gpt-4o-mini",
+  "provider": "openai",
+  "baseUrl": "https://api.openai.com/v1",
+  "apiKey": "sk-***"
+}
+```
+
+### 更新模型
+`PUT /api/models/{id}`
+
+### 删除模型
+`DELETE /api/models/{id}`
+
+---
+
+## 9. 优化建议（Optimization Suggestion）
 
 ### 查询建议
 `GET /api/optimization-suggestions?appId=app_123&status=pending`
@@ -263,7 +289,7 @@
 
 ---
 
-## 9. 典型流程
+## 10. 典型流程
 
 1. **记录问答**：外部系统调用 `POST /api/query-records` 注入问答日志
 2. **收集反馈**：人工/AI 调用 `POST /api/feedbacks`
@@ -273,7 +299,7 @@
 
 ---
 
-## 10. 示例：创建问答记录并提交反馈
+## 11. 示例：创建问答记录并提交反馈
 
 ```bash
 # 创建问答记录
@@ -299,7 +325,7 @@ curl -X POST http://localhost:10001/api/feedbacks \
 
 ---
 
-## 11. 相关资源
+## 12. 相关资源
 
 - **交互式 API 文档**：http://localhost:10001/api-docs（Swagger UI，推荐使用）
 - **数据模型定义**：`docs/PROJECT_OVERVIEW.md`、`docs/design.md`

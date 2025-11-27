@@ -66,6 +66,7 @@ import {
   FolderOpen,
   Tags,
   Target,
+  Settings,
   BarChart3
 } from 'lucide-vue-next'
 
@@ -76,11 +77,12 @@ type RouteTab =
   | 'dashboard'
   | 'qa-tracking'
   | 'qa-management'
-  | 'feedbacks'
   | 'qa-datasets'
   | 'tag-management'
   | 'hit-analysis'
+  | 'model-management'
   | 'evaluation'
+  | 'feedbacks'
 
 const currentTab = computed<RouteTab>(() => {
   const name = route.name?.toString()
@@ -92,10 +94,11 @@ const navItems = [
   { id: 'dashboard', label: 'Dashboard', icon: LayoutDashboard },
   { id: 'qa-tracking', label: 'QA 跟踪', icon: MessageSquare },
   { id: 'qa-management', label: 'QA 管理', icon: ClipboardList },
-  { id: 'feedbacks', label: 'Feedback 管理', icon: MessageCircle },
   { id: 'qa-datasets', label: 'QA 数据集', icon: FolderOpen },
   { id: 'tag-management', label: 'Tag 管理', icon: Tags },
   { id: 'hit-analysis', label: '命中分析', icon: Target },
+  { id: 'model-management', label: '模型管理', icon: Settings },
   { id: 'evaluation', label: '效果评估', icon: BarChart3 },
+  { id: 'feedbacks', label: 'Feedback 管理', icon: MessageCircle },
 ]
 </script>

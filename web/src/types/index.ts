@@ -66,8 +66,33 @@ export interface HitAnalysis {
   matchType: 'exact' | 'high' | 'medium' | 'none' // 完全命中、80%相似、60%相似、未命中
   similarity: number // 相似度 0-100
   matchedQueryRecordId?: string // 匹配到的数据集中的问答记录ID
-  analysisResult?: string // AI 分析结果
+  analysisResult?: {
+    range?: '24h' | '7d' | '30d'
+    modelId?: string | null
+    appId?: string
+    [key: string]: any
+  } // 额外元数据
   createdAt: string
+}
+
+export interface HitAnalysisSummary {
+  exact: number
+  high: number
+  medium: number
+  none: number
+  total: number
+}
+
+export interface ModelConfig {
+  id: string
+  name: string
+  provider: string
+  baseUrl: string
+  apiKey: string
+  model: string
+  metadata?: Record<string, any>
+  createdAt: string
+  updatedAt: string
 }
 
 // 效果评估
