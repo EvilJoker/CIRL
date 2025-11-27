@@ -183,6 +183,15 @@ export class JsonProvider extends BaseProvider {
     return saveJSONFile('optimization-suggestions.json', suggestions)
   }
 
+  // ========== 模型（ModelConfig）管理 ==========
+  async readModels() {
+    return readJSONFile('models.json')
+  }
+
+  async saveModels(models) {
+    return saveJSONFile('models.json', models)
+  }
+
   // ========== 统计（Stats）==========
   /**
    * 获取请求统计信息（实时计算，命中缓存则复用）

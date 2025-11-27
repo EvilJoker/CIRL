@@ -8,7 +8,7 @@
     </div>
 
     <Card class="p-5 space-y-4">
-      <div class="flex flex-wrap items-center gap-4">
+      <div class="flex flex-wrap items-center gap-3">
         <Select v-model="selectedAppId" @update:model-value="handleFilterChange">
           <SelectTrigger class="w-[200px]">
             <SelectValue placeholder="选择应用" />
@@ -34,8 +34,24 @@
           class="w-[150px]"
           @change="handleFilterChange"
         />
+        <Input
+          v-model="keyword"
+          placeholder="输入关键字（输入/输出）"
+          class="w-[220px]"
+          @keyup.enter="handleFilterChange"
+        />
+        <Button size="sm" variant="secondary" @click="handleFilterChange">
+          搜索
+        </Button>
         <Button variant="outline" size="sm" @click="resetFilters">
           重置
+        </Button>
+        <Button
+          size="sm"
+          :disabled="exportLoading"
+          @click="exportRecords"
+        >
+          {{ exportLoading ? '导出中...' : '导出 JSON' }}
         </Button>
       </div>
 
@@ -198,9 +214,11 @@ const totalRecords = ref(0)
 const selectedAppId = ref('all')
 const startDate = ref('')
 const endDate = ref('')
+const keyword = ref('')
 const showFeedbackModal = ref(false)
 const currentRecord = ref<QueryRecord | null>(null)
 const feedbackForm = ref({ type: 'positive' as const, rating: 5, content: '' })
+const exportLoading = ref(false)
 
 const hitSummaryMap = computed(() => {
   const map: Record<string, { exact: number; high: number; medium: number; none: number }> = {}
@@ -244,14 +262,22 @@ async function loadApps() {
   }
 }
 
+function buildQueryParams(pageOverride?: number, pageSizeOverride?: number) {
+  const params: Record<string, any> = {
+    page: pageOverride ?? currentPage.value,
+    pageSize: pageSizeOverride ?? pageSize
+  }
+  if (selectedAppId.value !== 'all') params.appId = selectedAppId.value
+  if (startDate.value) params.startDate = startDate.value
+  if (endDate.value) params.endDate = endDate.value
+  if (keyword.value.trim()) params.keyword = keyword.value.trim()
+  return params
+}
+
 async function loadRecords() {
   loading.value = true
   try {
-    const params: any = { page: currentPage.value, pageSize }
-    if (selectedAppId.value !== 'all') params.appId = selectedAppId.value
-    if (startDate.value) params.startDate = startDate.value
-    if (endDate.value) params.endDate = endDate.value
-    const result = await fetchQueryRecords(params)
+    const result = await fetchQueryRecords(buildQueryParams())
     records.value = result.data
     totalRecords.value = result.total
   } catch (error) {
@@ -267,6 +293,7 @@ async function loadHitData() {
     if (selectedAppId.value !== 'all') params.appId = selectedAppId.value
     if (startDate.value) params.startDate = startDate.value
     if (endDate.value) params.endDate = endDate.value
+    if (keyword.value.trim()) params.keyword = keyword.value.trim()
     hitAnalyses.value = await fetchHitAnalyses(params)
   } catch (error) {
     console.error('Failed to load hit analyses:', error)
@@ -283,6 +310,7 @@ function resetFilters() {
   selectedAppId.value = 'all'
   startDate.value = ''
   endDate.value = ''
+  keyword.value = ''
   handleFilterChange()
 }
 
@@ -333,6 +361,34 @@ function changePage(delta: number) {
   if (next < 1 || next > totalPages.value) return
   currentPage.value = next
   loadRecords()
+}
+
+async function exportRecords() {
+  exportLoading.value = true
+  try {
+    const pageSizeForExport = 200
+    let page = 1
+    const collected: QueryRecord[] = []
+    while (true) {
+      const result = await fetchQueryRecords(buildQueryParams(page, pageSizeForExport))
+      collected.push(...result.data)
+      if (collected.length >= result.total) break
+      page += 1
+      if (result.data.length === 0) break
+    }
+    const blob = new Blob([JSON.stringify(collected, null, 2)], { type: 'application/json' })
+    const url = URL.createObjectURL(blob)
+    const anchor = document.createElement('a')
+    anchor.href = url
+    anchor.download = `qa-tracking-${Date.now()}.json`
+    anchor.click()
+    URL.revokeObjectURL(url)
+  } catch (error) {
+    console.error('Failed to export records:', error)
+    alert('导出失败')
+  } finally {
+    exportLoading.value = false
+  }
 }
 
 const totalPages = computed(() => Math.max(1, Math.ceil(totalRecords.value / pageSize)))

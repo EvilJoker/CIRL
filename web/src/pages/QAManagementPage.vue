@@ -54,6 +54,18 @@
             <SelectItem value="asc">命中次数（低→高）</SelectItem>
           </SelectContent>
         </Select>
+        <Input
+          v-model="keyword"
+          placeholder="输入关键字（输入/输出）"
+          class="w-[220px]"
+          @keyup.enter="currentPage = 1"
+        />
+        <Button variant="secondary" size="sm" @click="currentPage = 1">
+          应用搜索
+        </Button>
+        <Button size="sm" :disabled="exportLoading" @click="exportRecords">
+          {{ exportLoading ? '导出中...' : '导出 JSON' }}
+        </Button>
       </div>
 
       <div class="space-y-3">
@@ -198,11 +210,13 @@ const datasetFilter = ref('all')
 const hitFilter = ref('all')
 const sortOrder = ref<'asc' | 'desc'>('desc')
 
+const keyword = ref('')
 const editCache = ref<Record<string, { input: string; output: string }>>({})
 const tagInputCache = ref<Record<string, string>>({})
 const selectedTags = ref<string[]>([])
 const tagFilterLogic = ref<'and' | 'or'>('or')
 const tagSearch = ref('')
+const exportLoading = ref(false)
 
 const curatedRecords = computed(() => records.value.filter(r => r.curated))
 
@@ -230,6 +244,13 @@ const datasetMembership = computed(() => {
 
 const filteredRecords = computed(() => {
   let result = curatedRecords.value.slice()
+  if (keyword.value.trim()) {
+    const kw = keyword.value.trim().toLowerCase()
+    result = result.filter(record =>
+      (record.input || '').toLowerCase().includes(kw) ||
+      (record.output || '').toLowerCase().includes(kw)
+    )
+  }
   const now = Date.now()
   if (timeRange.value !== 'all') {
     const thresholdMap = {
@@ -404,8 +425,17 @@ async function loadApps() {
 async function loadRecords() {
   loading.value = true
   try {
-    const result = await fetchQueryRecords({ curated: true, pageSize: 200 })
-    records.value = result.data
+    const pageSize = 200
+    let page = 1
+    const all: QueryRecord[] = []
+    while (true) {
+      const result = await fetchQueryRecords({ curated: true, page, pageSize })
+      all.push(...result.data)
+      if (all.length >= result.total) break
+      if (result.data.length === 0) break
+      page += 1
+    }
+    records.value = all
   } catch (error) {
     console.error('Failed to load records:', error)
   } finally {
@@ -444,9 +474,28 @@ watch(
   { immediate: true, deep: true }
 )
 
-watch([timeRange, datasetFilter, hitFilter, sortOrder, selectedTags, tagFilterLogic], () => {
+watch([timeRange, datasetFilter, hitFilter, sortOrder, selectedTags, tagFilterLogic, keyword], () => {
   currentPage.value = 1
 })
+
+async function exportRecords() {
+  exportLoading.value = true
+  try {
+    const data = filteredRecords.value
+    const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' })
+    const url = URL.createObjectURL(blob)
+    const anchor = document.createElement('a')
+    anchor.href = url
+    anchor.download = `qa-management-${Date.now()}.json`
+    anchor.click()
+    URL.revokeObjectURL(url)
+  } catch (error) {
+    console.error('Failed to export QA records:', error)
+    alert('导出失败')
+  } finally {
+    exportLoading.value = false
+  }
+}
 
 onMounted(async () => {
   await Promise.all([loadApps(), loadRecords(), loadDatasets(), loadHitAnalysesData()])

@@ -1,5 +1,14 @@
 const API_BASE = '/api'
-import type { App, QueryRecord, Feedback, Dataset, HitAnalysis, Evaluation, OptimizationSuggestion } from '@/types'
+import type {
+  App,
+  QueryRecord,
+  Feedback,
+  Dataset,
+  HitAnalysis,
+  Evaluation,
+  OptimizationSuggestion,
+  ModelConfig
+} from '@/types'
 
 // ========== 应用（App）管理 ==========
 
@@ -51,6 +60,7 @@ export async function fetchQueryRecords(params?: {
   endDate?: string
   curated?: boolean
   ignored?: boolean
+  keyword?: string
   page?: number
   pageSize?: number
 }): Promise<{ data: QueryRecord[]; total: number; page: number; pageSize: number }> {
@@ -60,6 +70,7 @@ export async function fetchQueryRecords(params?: {
   if (params?.endDate) query.set('endDate', params.endDate)
   if (params?.curated !== undefined) query.set('curated', String(params.curated))
   if (params?.ignored !== undefined) query.set('ignored', String(params.ignored))
+  if (params?.keyword) query.set('keyword', params.keyword)
   if (params?.page) query.set('page', String(params.page))
   if (params?.pageSize) query.set('pageSize', String(params.pageSize))
   const queryStr = query.toString() ? `?${query.toString()}` : ''
@@ -236,45 +247,31 @@ export async function createHitAnalysis(data: {
   return res.json()
 }
 
-export async function runFullAnalysis(data: {
+export async function runHitAnalysis(data: {
   appId: string
-  datasetId: string
-  startDate: string
-  endDate: string
+  range: '24h' | '7d' | '30d'
+  modelId: string
 }) {
-  const res = await fetch(`${API_BASE}/hit-analyses/full`, {
+  const res = await fetch(`${API_BASE}/hit-analyses`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(data)
   })
-  if (!res.ok) throw new Error('Failed to perform full analysis')
-  return res.json()
-}
-
-export async function runIncrementalAnalysis(data: {
-  appId: string
-  datasetId: string
-}) {
-  const res = await fetch(`${API_BASE}/hit-analyses/incremental`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify(data)
-  })
-  if (!res.ok) throw new Error('Failed to perform incremental analysis')
+  if (!res.ok) throw new Error('Failed to run hit analysis')
   return res.json()
 }
 
 export async function fetchHitAnalyses(params?: {
   appId?: string
-  datasetId?: string
   startDate?: string
   endDate?: string
+  range?: '24h' | '7d' | '30d'
 }): Promise<HitAnalysis[]> {
   const query = new URLSearchParams()
   if (params?.appId) query.set('appId', params.appId)
-  if (params?.datasetId) query.set('datasetId', params.datasetId)
   if (params?.startDate) query.set('startDate', params.startDate)
   if (params?.endDate) query.set('endDate', params.endDate)
+  if (params?.range) query.set('range', params.range)
   const queryStr = query.toString() ? `?${query.toString()}` : ''
   const res = await fetch(`${API_BASE}/hit-analyses${queryStr}`)
   if (!res.ok) throw new Error('Failed to fetch hit analyses')
@@ -284,15 +281,15 @@ export async function fetchHitAnalyses(params?: {
 
 export async function fetchHitAnalysisStats(params: {
   appId?: string
-  datasetId?: string
   startDate?: string
   endDate?: string
+  range?: '24h' | '7d' | '30d'
 }): Promise<{ exact: number; high: number; medium: number; none: number; total: number }> {
   const query = new URLSearchParams()
   if (params.appId) query.set('appId', params.appId)
-  if (params.datasetId) query.set('datasetId', params.datasetId)
   if (params.startDate) query.set('startDate', params.startDate)
   if (params.endDate) query.set('endDate', params.endDate)
+  if (params.range) query.set('range', params.range)
   const queryStr = query.toString() ? `?${query.toString()}` : ''
   const res = await fetch(`${API_BASE}/hit-analyses/stats${queryStr}`)
   if (!res.ok) throw new Error('Failed to fetch hit analysis stats')
@@ -369,6 +366,49 @@ export async function updateOptimizationSuggestion(id: string, data: Partial<Opt
   })
   if (!res.ok) throw new Error('Failed to update optimization suggestion')
   return res.json()
+}
+
+// ========== 模型管理（ModelConfig）API ==========
+
+export async function fetchModels(): Promise<ModelConfig[]> {
+  const res = await fetch(`${API_BASE}/models`)
+  if (!res.ok) throw new Error('Failed to fetch models')
+  const result = await res.json()
+  return result.data || []
+}
+
+export async function createModel(data: {
+  name: string
+  model: string
+  provider?: string
+  baseUrl?: string
+  apiKey?: string
+  metadata?: Record<string, any>
+}): Promise<ModelConfig> {
+  const res = await fetch(`${API_BASE}/models`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(data)
+  })
+  if (!res.ok) throw new Error('Failed to create model')
+  return res.json()
+}
+
+export async function updateModel(id: string, data: Partial<ModelConfig>): Promise<ModelConfig> {
+  const res = await fetch(`${API_BASE}/models/${id}`, {
+    method: 'PUT',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(data)
+  })
+  if (!res.ok) throw new Error('Failed to update model')
+  return res.json()
+}
+
+export async function deleteModel(id: string): Promise<void> {
+  const res = await fetch(`${API_BASE}/models/${id}`, {
+    method: 'DELETE'
+  })
+  if (!res.ok) throw new Error('Failed to delete model')
 }
 
 // ========== 统计（Stats）API ==========

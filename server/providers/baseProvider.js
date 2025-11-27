@@ -66,6 +66,15 @@ export class BaseProvider {
     throw new Error('saveOptimizationSuggestions() must be implemented')
   }
 
+  // ========== 模型（ModelConfig）管理 ==========
+  async readModels() {
+    throw new Error('readModels() must be implemented')
+  }
+
+  async saveModels(models) {
+    throw new Error('saveModels() must be implemented')
+  }
+
   // ========== 统计（Stats）==========
   /**
    * 获取请求统计信息
