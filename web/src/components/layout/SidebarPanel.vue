@@ -63,7 +63,6 @@ import {
   MessageSquare,
   ClipboardList,
   MessageCircle,
-  FolderOpen,
   Tags,
   Target,
   Settings,
@@ -77,7 +76,6 @@ type RouteTab =
   | 'dashboard'
   | 'qa-tracking'
   | 'qa-management'
-  | 'qa-datasets'
   | 'tag-management'
   | 'hit-analysis'
   | 'model-management'
@@ -94,7 +92,6 @@ const navItems = [
   { id: 'dashboard', label: 'Dashboard', icon: LayoutDashboard },
   { id: 'qa-tracking', label: 'QA 跟踪', icon: MessageSquare },
   { id: 'qa-management', label: 'QA 管理', icon: ClipboardList },
-  { id: 'qa-datasets', label: 'QA 数据集', icon: FolderOpen },
   { id: 'tag-management', label: 'Tag 管理', icon: Tags },
   { id: 'hit-analysis', label: '命中分析', icon: Target },
   { id: 'model-management', label: '模型管理', icon: Settings },

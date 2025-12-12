@@ -85,30 +85,48 @@
       </div>
 
       <div>
-        <h3 class="font-semibold mb-3">最近命中记录</h3>
-        <div v-if="recentAnalyses.length === 0" class="text-sm text-muted-foreground">
-          暂无分析记录，执行任务后可在此查看。
-        </div>
-        <div v-else class="space-y-3">
-          <div
-            v-for="analysis in recentAnalyses"
-            :key="analysis.id"
-            class="p-3 border rounded flex flex-wrap justify-between gap-2 text-sm"
-          >
-            <div>
-              <p class="font-medium">QA：{{ analysis.queryRecordId }}</p>
-              <p class="text-xs text-muted-foreground">
-                命中类型：{{ matchTypeLabel(analysis.matchType) }}（{{ analysis.similarity }}%）
-              </p>
-              <p class="text-xs text-muted-foreground">
-                时间范围：{{ analysis.analysisResult?.range ?? '—' }}
-              </p>
-            </div>
-            <span class="text-xs text-muted-foreground">
-              {{ formatDate(analysis.createdAt) }}
-            </span>
+        <div class="flex items-center justify-between mb-3">
+          <h3 class="font-semibold">最近命中记录</h3>
+          <div class="flex items-center gap-2">
+            <Input
+              v-model="globalFilter"
+              placeholder="搜索 QA ID"
+              class="w-[240px]"
+              @keyup.enter="table.setPageIndex(0)"
+            />
+            <DataTableViewOptions :table="table" />
           </div>
         </div>
+        <Table>
+          <TableHeader>
+            <TableRow v-for="headerGroup in table.getHeaderGroups()" :key="headerGroup.id">
+              <TableHead v-for="header in headerGroup.headers" :key="header.id">
+                <span v-if="header.isPlaceholder" />
+                <FlexRender
+                  v-else
+                  :render="header.column.columnDef.header"
+                  :props="header.getContext()"
+                />
+              </TableHead>
+            </TableRow>
+          </TableHeader>
+          <TableBody>
+            <TableRow v-if="table.getRowModel().rows.length === 0">
+              <TableCell :colspan="table.getAllColumns().length" class="h-24 text-center text-muted-foreground">
+                暂无分析记录，执行任务后可在此查看。
+              </TableCell>
+            </TableRow>
+            <TableRow
+              v-for="row in table.getRowModel().rows"
+              :key="row.id"
+            >
+              <TableCell v-for="cell in row.getVisibleCells()" :key="cell.id">
+                <FlexRender :render="cell.column.columnDef.cell" :props="cell.getContext()" />
+              </TableCell>
+            </TableRow>
+          </TableBody>
+        </Table>
+        <DataTablePagination :table="table" class="pt-2" />
       </div>
     </Card>
 
@@ -116,7 +134,9 @@
 </template>
 
 <script setup lang="ts">
-import { ref, onMounted, computed, watch } from 'vue'
+import { ref, onMounted, computed, watch, h } from 'vue'
+import type { ColumnDef, SortingState, FilterFn } from '@tanstack/vue-table'
+import { FlexRender, getCoreRowModel, getFilteredRowModel, getPaginationRowModel, getSortedRowModel, useVueTable } from '@tanstack/vue-table'
 import {
   fetchApps,
   fetchHitAnalyses,
@@ -127,8 +147,11 @@ import {
 import type { App, HitAnalysis, ModelConfig } from '@/types'
 import { Card } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
+import { Input } from '@/components/ui/input'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { formatDate } from '@/lib/utils'
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
+import { DataTableColumnHeader, DataTablePagination, DataTableViewOptions } from '@/components/ui/data-table'
 
 const apps = ref<App[]>([])
 const models = ref<ModelConfig[]>([])
@@ -139,6 +162,15 @@ const selectedRange = ref<'24h' | '7d' | '30d'>('24h')
 const selectedModelId = ref('')
 const running = ref(false)
 const lastRunWindow = ref<{ startDate: string; endDate: string } | null>(null)
+const globalFilter = ref('')
+const sorting = ref<SortingState>([{ id: 'createdAt', desc: true }])
+
+const globalFilterFn: FilterFn<HitAnalysis> = (row, _columnId, filterValue) => {
+  const search = String(filterValue || '').toLowerCase()
+  if (!search) return true
+  const queryRecordId = String(row.original.queryRecordId || '').toLowerCase()
+  return queryRecordId.includes(search)
+}
 
 async function loadApps() {
   try {
@@ -192,7 +224,55 @@ async function refreshStats() {
 const recentAnalyses = computed(() => {
   return [...hitAnalyses.value]
     .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime())
-    .slice(0, 10)
+})
+
+const columns = computed<ColumnDef<HitAnalysis>[]>(() => [
+  {
+    accessorKey: 'queryRecordId',
+    header: 'QA ID',
+    cell: ({ row }) => row.getValue('queryRecordId')
+  },
+  {
+    accessorKey: 'matchType',
+    header: '命中类型',
+    cell: ({ row }) => {
+      const matchType = row.getValue('matchType') as HitAnalysis['matchType']
+      const similarity = row.original.similarity
+      return h('div', { class: 'space-y-1' }, [
+        h('span', { class: 'font-medium' }, matchTypeLabel(matchType)),
+        h('span', { class: 'text-xs text-muted-foreground' }, `相似度: ${similarity}%`)
+      ])
+    }
+  },
+  {
+    accessorKey: 'analysisResult',
+    header: '时间范围',
+    cell: ({ row }) => row.original.analysisResult?.range || '—'
+  },
+  {
+    accessorKey: 'createdAt',
+    header: ({ column }) => h(DataTableColumnHeader, { column, title: '创建时间' }),
+    cell: ({ row }) => formatDate(String(row.getValue('createdAt')))
+  }
+])
+
+const table = useVueTable({
+  data: recentAnalyses,
+  columns: columns.value,
+  state: {
+    get sorting() { return sorting.value },
+    get globalFilter() { return globalFilter.value }
+  },
+  onSortingChange: updater => sorting.value = typeof updater === 'function' ? updater(sorting.value) : updater,
+  onGlobalFilterChange: value => { globalFilter.value = value as string },
+  globalFilterFn,
+  getCoreRowModel: getCoreRowModel(),
+  getSortedRowModel: getSortedRowModel(),
+  getFilteredRowModel: getFilteredRowModel(),
+  getPaginationRowModel: getPaginationRowModel(),
+  initialState: {
+    pagination: { pageSize: 10, pageIndex: 0 }
+  }
 })
 
 function matchTypeLabel(type: HitAnalysis['matchType']) {

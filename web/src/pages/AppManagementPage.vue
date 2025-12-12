@@ -5,65 +5,57 @@
       <p class="text-sm text-muted-foreground">创建和管理应用</p>
     </div>
 
-    <Card class="p-6">
-      <div class="flex items-center justify-between mb-4">
+    <Card class="p-6 space-y-4">
+      <div class="flex items-center justify-between gap-3">
         <h3 class="text-lg font-semibold">应用列表</h3>
-        <Button @click="showCreateModal = true">
-          创建应用
-        </Button>
+        <div class="flex items-center gap-2">
+          <Input
+            v-model="globalFilter"
+            placeholder="搜索名称/ID"
+            class="w-[240px]"
+            @keyup.enter="table.setPageIndex(0)"
+          />
+          <DataTableViewOptions :table="table" />
+          <Button @click="showCreateModal = true">
+            创建应用
+          </Button>
+        </div>
       </div>
 
       <div v-if="loading" class="text-center py-8 text-muted-foreground">
         加载中...
       </div>
-      <div v-else-if="apps.length === 0" class="text-center py-8 text-muted-foreground">
-        暂无应用，点击"创建应用"开始
-      </div>
-      <div v-else class="space-y-3">
-        <div
-          v-for="app in apps"
-          :key="app.id"
-          class="p-4 border rounded-lg hover:bg-muted/50"
-        >
-          <div class="flex items-start justify-between">
-            <div class="flex-1">
-              <div class="flex items-center gap-2">
-                <h4 class="font-semibold">{{ app.name }}</h4>
-                <span class="text-xs text-muted-foreground font-mono">ID: {{ app.id }}</span>
-              </div>
-              <p v-if="app.description" class="text-sm text-muted-foreground mt-1">
-                {{ app.description }}
-              </p>
-              <div class="mt-2 space-y-1">
-                <p class="text-xs text-muted-foreground">
-                  创建时间: {{ formatDate(app.createdAt) }}
-                </p>
-                <div class="flex items-center gap-4 text-xs">
-                  <div class="flex items-center gap-1">
-                    <span class="text-muted-foreground">24小时:</span>
-                    <span class="font-semibold">{{ getRequestCount(app.id, '24h') }}</span>
-                  </div>
-                  <div class="flex items-center gap-1">
-                    <span class="text-muted-foreground">7天:</span>
-                    <span class="font-semibold">{{ getRequestCount(app.id, '7d') }}</span>
-                  </div>
-                  <div class="flex items-center gap-1">
-                    <span class="text-muted-foreground">30天:</span>
-                    <span class="font-semibold">{{ getRequestCount(app.id, '30d') }}</span>
-                  </div>
-                </div>
-              </div>
-            </div>
-            <div class="flex gap-2">
-              <Button size="sm" variant="outline" @click="editApp(app)">
-                编辑
-              </Button>
-              <Button size="sm" variant="destructive" @click="deleteApp(app.id)">
-                删除
-              </Button>
-            </div>
-          </div>
-        </div>
+      <div v-else>
+        <Table>
+          <TableHeader>
+            <TableRow v-for="headerGroup in table.getHeaderGroups()" :key="headerGroup.id">
+              <TableHead v-for="header in headerGroup.headers" :key="header.id">
+                <span v-if="header.isPlaceholder" />
+                <FlexRender
+                  v-else
+                  :render="header.column.columnDef.header"
+                  :props="header.getContext()"
+                />
+              </TableHead>
+            </TableRow>
+          </TableHeader>
+          <TableBody>
+            <TableRow v-if="table.getRowModel().rows.length === 0">
+              <TableCell :colspan="table.getAllColumns().length" class="h-24 text-center text-muted-foreground">
+                暂无应用，点击"创建应用"开始
+              </TableCell>
+            </TableRow>
+            <TableRow
+              v-for="row in table.getRowModel().rows"
+              :key="row.id"
+            >
+              <TableCell v-for="cell in row.getVisibleCells()" :key="cell.id">
+                <FlexRender :render="cell.column.columnDef.cell" :props="cell.getContext()" />
+              </TableCell>
+            </TableRow>
+          </TableBody>
+        </Table>
+        <DataTablePagination :table="table" class="pt-2" />
       </div>
     </Card>
 
@@ -93,7 +85,9 @@
 </template>
 
 <script setup lang="ts">
-import { ref, onMounted } from 'vue'
+import { ref, onMounted, computed, h } from 'vue'
+import type { ColumnDef, SortingState, FilterFn } from '@tanstack/vue-table'
+import { FlexRender, getCoreRowModel, getFilteredRowModel, getPaginationRowModel, getSortedRowModel, useVueTable } from '@tanstack/vue-table'
 import { fetchApps, createApp, updateApp, deleteApp as deleteAppApi, fetchRequestStats, type RequestStats } from '@/lib/api'
 import { formatDate } from '@/lib/utils'
 import type { App } from '@/types'
@@ -102,6 +96,9 @@ import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Textarea } from '@/components/ui/textarea'
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog'
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
+import { DataTableColumnHeader, DataTablePagination, DataTableViewOptions } from '@/components/ui/data-table'
+import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover'
 
 const apps = ref<App[]>([])
 const stats = ref<Record<string, RequestStats>>({})
@@ -109,6 +106,111 @@ const loading = ref(false)
 const showCreateModal = ref(false)
 const editingApp = ref<App | null>(null)
 const formData = ref({ name: '', description: '' })
+const globalFilter = ref('')
+const sorting = ref<SortingState>([{ id: 'createdAt', desc: true }])
+
+const globalFilterFn: FilterFn<App> = (row, _columnId, filterValue) => {
+  const search = String(filterValue || '').toLowerCase()
+  if (!search) return true
+  const name = String(row.original.name || '').toLowerCase()
+  const id = String(row.original.id || '').toLowerCase()
+  return name.includes(search) || id.includes(search)
+}
+
+const columns = computed<ColumnDef<App>[]>(() => [
+  {
+    accessorKey: 'name',
+    header: ({ column }) => h(DataTableColumnHeader, { column, title: '名称' }),
+    cell: ({ row }) => h('div', { class: 'flex items-center gap-2' }, [
+      h('span', { class: 'font-semibold' }, row.getValue('name')),
+      h('span', { class: 'text-xs text-muted-foreground font-mono' }, `ID: ${row.original.id}`)
+    ])
+  },
+  {
+    accessorKey: 'description',
+    header: '描述',
+    cell: ({ row }) => row.getValue('description') || '—'
+  },
+  {
+    accessorKey: 'createdAt',
+    header: ({ column }) => h(DataTableColumnHeader, { column, title: '创建时间' }),
+    cell: ({ row }) => formatDate(String(row.getValue('createdAt')))
+  },
+  {
+    id: 'stats',
+    header: '请求统计',
+    cell: ({ row }) => {
+      const appId = row.original.id
+      return h('div', { class: 'flex items-center gap-4 text-xs' }, [
+        h('div', { class: 'flex items-center gap-1' }, [
+          h('span', { class: 'text-muted-foreground' }, '24h:'),
+          h('span', { class: 'font-semibold' }, String(getRequestCount(appId, '24h')))
+        ]),
+        h('div', { class: 'flex items-center gap-1' }, [
+          h('span', { class: 'text-muted-foreground' }, '7d:'),
+          h('span', { class: 'font-semibold' }, String(getRequestCount(appId, '7d')))
+        ]),
+        h('div', { class: 'flex items-center gap-1' }, [
+          h('span', { class: 'text-muted-foreground' }, '30d:'),
+          h('span', { class: 'font-semibold' }, String(getRequestCount(appId, '30d')))
+        ])
+      ])
+    }
+  },
+  {
+    id: 'actions',
+    header: '操作',
+    enableSorting: false,
+    enableHiding: false,
+    cell: ({ row }) =>
+      h(Popover, {}, {
+        default: () => [
+          h(PopoverTrigger, { asChild: true }, () =>
+            h(Button, {
+              size: 'sm',
+              variant: 'ghost',
+              class: 'h-8 w-8 p-0'
+            }, () => h('span', { class: 'text-lg' }, '⋯'))
+          ),
+          h(PopoverContent, { align: 'end', class: 'w-[160px]' }, () => [
+            h('div', { class: 'flex flex-col gap-1' }, [
+              h(Button, {
+                size: 'sm',
+                variant: 'ghost',
+                class: 'justify-start w-full',
+                onClick: () => editApp(row.original)
+              }, '编辑'),
+              h(Button, {
+                size: 'sm',
+                variant: 'ghost',
+                class: 'justify-start w-full text-destructive',
+                onClick: () => deleteApp(row.original.id)
+              }, '删除')
+            ])
+          ])
+        ]
+      })
+  }
+])
+
+const table = useVueTable({
+  data: apps,
+  columns: columns.value,
+  state: {
+    get sorting() { return sorting.value },
+    get globalFilter() { return globalFilter.value }
+  },
+  onSortingChange: updater => sorting.value = typeof updater === 'function' ? updater(sorting.value) : updater,
+  onGlobalFilterChange: value => { globalFilter.value = value as string },
+  globalFilterFn,
+  getCoreRowModel: getCoreRowModel(),
+  getSortedRowModel: getSortedRowModel(),
+  getFilteredRowModel: getFilteredRowModel(),
+  getPaginationRowModel: getPaginationRowModel(),
+  initialState: {
+    pagination: { pageSize: 10, pageIndex: 0 }
+  }
+})
 
 async function loadApps() {
   loading.value = true

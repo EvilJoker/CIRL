@@ -5,41 +5,57 @@
       <p class="text-sm text-muted-foreground">创建和管理数据集（标准答案集）</p>
     </div>
 
-    <Card class="p-6">
-      <div class="flex items-center justify-between mb-4">
+    <Card class="p-6 space-y-4">
+      <div class="flex items-center justify-between gap-3">
         <h3 class="text-lg font-semibold">数据集列表</h3>
-        <Button @click="showCreateModal = true">
-          创建数据集
-        </Button>
+        <div class="flex items-center gap-2">
+          <Input
+            v-model="globalFilter"
+            placeholder="搜索名称/描述"
+            class="w-[240px]"
+            @keyup.enter="table.setPageIndex(0)"
+          />
+          <DataTableViewOptions :table="table" />
+          <Button @click="showCreateModal = true">
+            创建数据集
+          </Button>
+        </div>
       </div>
 
       <div v-if="loading" class="text-center py-8 text-muted-foreground">
         加载中...
       </div>
-      <div v-else-if="datasets.length === 0" class="text-center py-8 text-muted-foreground">
-        暂无数据集
-      </div>
-      <div v-else class="space-y-3">
-        <div
-          v-for="dataset in datasets"
-          :key="dataset.id"
-          class="p-4 border rounded-lg hover:bg-muted/50"
-        >
-          <div class="flex items-start justify-between">
-            <div class="flex-1">
-              <h4 class="font-semibold">{{ dataset.name }}</h4>
-              <p v-if="dataset.description" class="text-sm text-muted-foreground mt-1">
-                {{ dataset.description }}
-              </p>
-              <p class="text-xs text-muted-foreground mt-2">
-                包含 {{ dataset.queryRecordIds.length }} 条问答记录
-              </p>
-            </div>
-            <Button size="sm" variant="destructive" @click="deleteDataset(dataset.id)">
-              删除
-            </Button>
-          </div>
-        </div>
+      <div v-else>
+        <Table>
+          <TableHeader>
+            <TableRow v-for="headerGroup in table.getHeaderGroups()" :key="headerGroup.id">
+              <TableHead v-for="header in headerGroup.headers" :key="header.id">
+                <span v-if="header.isPlaceholder" />
+                <FlexRender
+                  v-else
+                  :render="header.column.columnDef.header"
+                  :props="header.getContext()"
+                />
+              </TableHead>
+            </TableRow>
+          </TableHeader>
+          <TableBody>
+            <TableRow v-if="table.getRowModel().rows.length === 0">
+              <TableCell :colspan="table.getAllColumns().length" class="h-24 text-center text-muted-foreground">
+                暂无数据集
+              </TableCell>
+            </TableRow>
+            <TableRow
+              v-for="row in table.getRowModel().rows"
+              :key="row.id"
+            >
+              <TableCell v-for="cell in row.getVisibleCells()" :key="cell.id">
+                <FlexRender :render="cell.column.columnDef.cell" :props="cell.getContext()" />
+              </TableCell>
+            </TableRow>
+          </TableBody>
+        </Table>
+        <DataTablePagination :table="table" class="pt-2" />
       </div>
     </Card>
 
@@ -111,7 +127,9 @@
 </template>
 
 <script setup lang="ts">
-import { ref, onMounted, watch } from 'vue'
+import { ref, onMounted, watch, computed, h } from 'vue'
+import type { ColumnDef, SortingState, FilterFn } from '@tanstack/vue-table'
+import { FlexRender, getCoreRowModel, getFilteredRowModel, getPaginationRowModel, getSortedRowModel, useVueTable } from '@tanstack/vue-table'
 import { fetchApps, fetchDatasets, createDataset, deleteDataset as deleteDatasetApi, fetchQueryRecords } from '@/lib/api'
 import type { App, Dataset, QueryRecord } from '@/types'
 import { Card } from '@/components/ui/card'
@@ -120,6 +138,10 @@ import { Input } from '@/components/ui/input'
 import { Textarea } from '@/components/ui/textarea'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog'
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
+import { DataTableColumnHeader, DataTablePagination, DataTableViewOptions } from '@/components/ui/data-table'
+import { Badge } from '@/components/ui/badge'
+import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover'
 
 const apps = ref<App[]>([])
 const datasets = ref<Dataset[]>([])
@@ -128,6 +150,81 @@ const loading = ref(false)
 const showCreateModal = ref(false)
 const createForm = ref({ appId: '', name: '', description: '' })
 const selectedRecordIds = ref<string[]>([])
+const globalFilter = ref('')
+const sorting = ref<SortingState>([{ id: 'createdAt', desc: true }])
+
+const globalFilterFn: FilterFn<Dataset> = (row, _columnId, filterValue) => {
+  const search = String(filterValue || '').toLowerCase()
+  if (!search) return true
+  const name = String(row.original.name || '').toLowerCase()
+  const description = String(row.original.description || '').toLowerCase()
+  return name.includes(search) || description.includes(search)
+}
+
+const columns = computed<ColumnDef<Dataset>[]>(() => [
+  {
+    accessorKey: 'name',
+    header: ({ column }) => h(DataTableColumnHeader, { column, title: '名称' }),
+    cell: ({ row }) => row.getValue('name')
+  },
+  {
+    accessorKey: 'description',
+    header: '描述',
+    cell: ({ row }) => row.getValue('description') || '—'
+  },
+  {
+    id: 'recordCount',
+    header: 'QA 数量',
+    cell: ({ row }) => h(Badge, null, () => `${row.original.queryRecordIds.length} 条`)
+  },
+  {
+    id: 'actions',
+    header: '操作',
+    enableSorting: false,
+    enableHiding: false,
+    cell: ({ row }) =>
+      h(Popover, {}, {
+        default: () => [
+          h(PopoverTrigger, { asChild: true }, () =>
+            h(Button, {
+              size: 'sm',
+              variant: 'ghost',
+              class: 'h-8 w-8 p-0'
+            }, () => h('span', { class: 'text-lg' }, '⋯'))
+          ),
+          h(PopoverContent, { align: 'end', class: 'w-[160px]' }, () => [
+            h('div', { class: 'flex flex-col gap-1' }, [
+              h(Button, {
+                size: 'sm',
+                variant: 'ghost',
+                class: 'justify-start w-full text-destructive',
+                onClick: () => deleteDataset(row.original.id)
+              }, '删除')
+            ])
+          ])
+        ]
+      })
+  }
+])
+
+const table = useVueTable({
+  data: datasets,
+  columns: columns.value,
+  state: {
+    get sorting() { return sorting.value },
+    get globalFilter() { return globalFilter.value }
+  },
+  onSortingChange: updater => sorting.value = typeof updater === 'function' ? updater(sorting.value) : updater,
+  onGlobalFilterChange: value => { globalFilter.value = value as string },
+  globalFilterFn,
+  getCoreRowModel: getCoreRowModel(),
+  getSortedRowModel: getSortedRowModel(),
+  getFilteredRowModel: getFilteredRowModel(),
+  getPaginationRowModel: getPaginationRowModel(),
+  initialState: {
+    pagination: { pageSize: 10, pageIndex: 0 }
+  }
+})
 
 async function loadApps() {
   try {

@@ -1,0 +1,56 @@
+---
+alwaysApply: true
+---
+
+# CIRL 项目协作与编码规则
+
+## 协作流程
+- 分支策略：main 只接收 PR；feature/* 开发；fix/* 修复；chore/* 杂项。
+- PR 要有摘要、变更列表、测试说明；至少 1 人 Review。
+- 禁止强推 main；合并前确保 CI 通过。
+
+## 提交规范（Conventional Commits）
+- 格式：`<type>[scope]: <description>`，type 取值：feat、fix、docs、style、refactor、perf、test、build。
+- scope 可选，建议使用模块名或页面名。
+- description 用中文或英文的动宾短语，首字母小写。
+- body 用于补充背景、风险、测试情况。
+
+## 代码风格
+- 语言：Vue 3 + TypeScript；统一用 `<script setup lang="ts">`。
+- 样式：优先使用组件库样式变量；避免内联样式，需用时尽量只做局部覆盖。
+- 命名：组件 PascalCase，文件名 kebab-case，变量/函数 camelCase，常量 SCREAMING_SNAKE_CASE。
+- 导入顺序：第三方 -> @/（别名）-> 相对路径；同类导入按字母排序。
+- 避免魔法数字/字符串，提取为常量；公共逻辑抽到 `src/utils` 或 composables。
+
+## 架构选型
+- 包管理与构建：pnpm + Vite + vue-tsc。
+- 前端框架：Vue 3 + TypeScript；路由使用 vue-router。
+- 样式体系：Tailwind CSS v4，配合 tailwind-variants、tailwind-merge、clsx 组织样式。
+- 组件与交互：shadcn-vue（内部依赖 radix-vue）+ reka-ui；图标 lucide-vue-next。
+- 表格：@tanstack/vue-table 封装数据表格组件。
+- 可视化：echarts 与 @unovis/vue 视图按需选型。
+- Markdown：marked 渲染文档/说明内容。
+- 插件：unplugin-vue-components、unplugin-icons 自动按需引入组件与图标。
+
+## 目录约定
+- 页面：`src/pages`；复用组件：`src/components`; 基础 UI：`src/components/ui`。
+- 类型定义：就近放置 `types.ts`，跨模块放 `src/types`。
+- 网络与服务：`src/api`、`src/services`，统一封装请求和错误处理。
+
+## 测试与质量
+- 编写/更新单元或 e2e 测试覆盖关键逻辑；最少覆盖新增函数的主路径与异常路径。
+- 新功能需列出手动测试步骤；Bug 修复需添加回归用例。
+- 本地运行格式化与 lint：`pnpm lint`、`pnpm format`（或项目脚本）。
+
+## 性能与可维护性
+- 大数据表使用分页/虚拟滚动；避免在渲染中创建新函数/对象可复用的提取。
+- 关注可访问性：表单/按钮需 aria-label，表格列需标题。
+
+## 文档
+- 新增/修改功能同步更新相关 README 或页面内帮助文案。
+- 重要组件补充示例和 props 说明。
+
+## Cursor 辅助约定
+- 助手修改时遵守上述提交格式与分支策略。
+- 仅在需要时改动相关文件，避免无关重排；保持 ASCII。
+- 重要编辑前先说明意图，完成后提供变更路径和验证建议。

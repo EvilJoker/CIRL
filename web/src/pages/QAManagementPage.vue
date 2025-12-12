@@ -3,220 +3,200 @@
     <div>
       <h2 class="text-xl font-semibold mb-2">问答（QA）管理</h2>
       <p class="text-sm text-muted-foreground">
-        管理已筛选的 QA，编辑答案并维护数据集归属
+        管理精心检验的 QA，编辑答案和标签
       </p>
     </div>
 
-    <Card class="p-5 space-y-5">
-      <div class="flex flex-wrap gap-3">
-        <Select v-model="timeRange">
-          <SelectTrigger class="w-[150px]">
-            <SelectValue />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value="all">全部时间</SelectItem>
-            <SelectItem value="1d">最近 24 小时</SelectItem>
-            <SelectItem value="7d">最近 7 天</SelectItem>
-            <SelectItem value="30d">最近 30 天</SelectItem>
-          </SelectContent>
-        </Select>
-        <Select v-model="datasetFilter">
-          <SelectTrigger class="w-[200px]">
-            <SelectValue placeholder="选择数据集" />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value="all">全部数据集</SelectItem>
-            <SelectItem value="unassigned">未归属</SelectItem>
-            <SelectItem v-for="dataset in datasets" :key="dataset.id" :value="dataset.id">
-              {{ dataset.name }}
-            </SelectItem>
-          </SelectContent>
-        </Select>
-        <Select v-model="hitFilter">
-          <SelectTrigger class="w-[180px]">
-            <SelectValue />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value="all">全部命中</SelectItem>
-            <SelectItem value="60">60% 以上命中</SelectItem>
-            <SelectItem value="80">80% 以上命中</SelectItem>
-            <SelectItem value="exact">完全命中</SelectItem>
-            <SelectItem value="none">未命中</SelectItem>
-          </SelectContent>
-        </Select>
-
-        <Select v-model="sortOrder">
-          <SelectTrigger class="w-[160px]">
-            <SelectValue />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value="desc">命中次数（高→低）</SelectItem>
-            <SelectItem value="asc">命中次数（低→高）</SelectItem>
-          </SelectContent>
-        </Select>
+    <Card class="p-5 space-y-4">
+      <div class="flex items-center gap-2">
         <Input
-          v-model="keyword"
-          placeholder="输入关键字（输入/输出）"
-          class="w-[220px]"
-          @keyup.enter="currentPage = 1"
+          v-model="globalFilter"
+          placeholder="筛选问答（输入/输出）..."
+          class="max-w-sm"
+          @keyup.enter="table.setPageIndex(0)"
         />
-        <Button variant="secondary" size="sm" @click="currentPage = 1">
-          应用搜索
+        <Popover>
+          <PopoverTrigger as-child>
+            <Button variant="outline" size="sm" class="gap-2">
+              <span>应用</span>
+              <span v-if="selectedAppId !== 'all'" class="ml-1 h-5 w-5 rounded-full bg-primary text-primary-foreground flex items-center justify-center text-xs">
+                {{ getSelectedAppCount() }}
+              </span>
         </Button>
-        <Button size="sm" :disabled="exportLoading" @click="exportRecords">
-          {{ exportLoading ? '导出中...' : '导出 JSON' }}
-        </Button>
+          </PopoverTrigger>
+          <PopoverContent class="w-[200px] p-0" align="start">
+            <div class="p-2">
+              <Input
+                v-model="appSearch"
+                placeholder="搜索应用..."
+                class="h-8 mb-2"
+              />
+            </div>
+            <div class="max-h-[300px] overflow-auto">
+              <div class="p-1">
+                <label class="flex items-center gap-2 p-2 rounded hover:bg-accent cursor-pointer">
+                  <input
+                    type="radio"
+                    :checked="selectedAppId === 'all'"
+                    @change="selectedAppId = 'all'; handleFilterChange()"
+                    class="rounded"
+                  />
+                  <span class="text-sm">全部应用</span>
+                </label>
+                <label
+                  v-for="app in filteredApps"
+                  :key="app.id"
+                  class="flex items-center gap-2 p-2 rounded hover:bg-accent cursor-pointer"
+                >
+                  <input
+                    type="radio"
+                    :checked="selectedAppId === app.id"
+                    @change="selectedAppId = app.id; handleFilterChange()"
+                    class="rounded"
+                  />
+                  <span class="text-sm">{{ app.name }}</span>
+                </label>
+              </div>
       </div>
-
-      <div class="space-y-3">
-        <div class="flex flex-wrap items-center gap-3 text-sm">
-          <span class="text-muted-foreground">Tag 筛选（{{ tagFilterLogic === 'and' ? '且' : '或' }}）</span>
-          <Button size="sm" variant="outline" @click="toggleTagLogic">
-            切换为 {{ tagFilterLogic === 'and' ? '或' : '且' }} 条件
-          </Button>
+          </PopoverContent>
+        </Popover>
+        <div class="ml-auto flex items-center gap-2">
           <Input
-            v-model="tagSearch"
-            placeholder="搜索 Tag"
-            class="w-[200px]"
+            v-model="startDate"
+            type="date"
+            placeholder="开始日期"
+            class="w-[150px]"
+            @change="handleFilterChange"
           />
-        </div>
-        <div class="flex flex-wrap gap-2 max-h-32 overflow-y-auto text-sm">
-          <label
-            v-for="tag in tagOptions"
-            :key="tag"
-            class="inline-flex items-center gap-1 border rounded-full px-3 py-1 text-xs"
+          <Input
+            v-model="endDate"
+            type="date"
+            placeholder="结束日期"
+            class="w-[150px]"
+            @change="handleFilterChange"
+          />
+          <Button variant="outline" size="sm" @click="resetFilters">
+            重置
+          </Button>
+          <Button
+            size="sm"
+            :disabled="exportLoading"
+            @click="exportRecords"
           >
-            <input
-              type="checkbox"
-              :value="tag"
-              :checked="selectedTags.includes(tag)"
-              @change="toggleSelectedTag(tag)"
-            />
-            #{{ tag }}
-          </label>
-          <span v-if="tagOptions.length === 0" class="text-xs text-muted-foreground">暂无标签</span>
+            {{ exportLoading ? '导出中...' : '导出 JSON' }}
+          </Button>
         </div>
       </div>
 
       <div v-if="loading" class="text-center py-6 text-muted-foreground">
         加载中...
       </div>
-      <div v-else-if="filteredRecords.length === 0" class="text-center py-6 text-muted-foreground">
-        暂无 QA
-      </div>
-      <div v-else class="space-y-3">
-        <div
-          v-for="record in paginatedRecords"
-          :key="record.id"
-          class="p-4 border rounded-lg space-y-3 text-sm"
-        >
-          <div class="flex items-center justify-between flex-wrap gap-2">
-            <div class="flex items-center gap-2">
-              <Badge>{{ getAppName(record.appId) }}</Badge>
-              <Badge variant="secondary">命中：{{ getHitSummary(record.id) }}</Badge>
-              <Badge variant="secondary">
-                最近分析：{{ record.metadata?.lastAnalyzedAt ? formatDate(record.metadata.lastAnalyzedAt) : '—' }}
-              </Badge>
-            </div>
-            <Button size="sm" variant="outline" @click="saveRecord(record)">
-              保存修改
-            </Button>
-          </div>
-
+      <div v-else>
+        <Table>
+          <TableHeader>
+            <TableRow v-for="headerGroup in table.getHeaderGroups()" :key="headerGroup.id">
+              <TableHead v-for="header in headerGroup.headers" :key="header.id">
+                <span v-if="header.isPlaceholder" />
+                <FlexRender
+                  v-else
+                  :render="header.column.columnDef.header"
+                  :props="header.getContext()"
+                />
+              </TableHead>
+            </TableRow>
+          </TableHeader>
+          <TableBody>
+            <TableRow v-if="table.getRowModel().rows.length === 0">
+              <TableCell :colspan="table.getAllColumns().length" class="h-24 text-center text-muted-foreground">
+                暂无 QA
+              </TableCell>
+            </TableRow>
+            <template v-for="row in table.getRowModel().rows" :key="row.id">
+              <TableRow>
+                <TableCell v-for="cell in row.getVisibleCells()" :key="cell.id">
+                  <FlexRender :render="cell.column.columnDef.cell" :props="cell.getContext()" />
+                </TableCell>
+              </TableRow>
+              <TableRow v-if="row.getIsExpanded()">
+                <TableCell :colspan="table.getAllColumns().length" class="bg-muted/50 p-4">
+                  <div class="space-y-4">
           <div>
-            <label class="text-sm font-medium text-muted-foreground">输入</label>
-            <Textarea v-model="editCache[record.id].input" rows="2" />
+                      <label class="text-sm font-medium text-muted-foreground mb-1 block">输入</label>
+                      <Textarea v-model="editCache[row.original.id].input" rows="2" />
           </div>
           <div>
-            <label class="text-sm font-medium text-muted-foreground">输出</label>
-            <Textarea v-model="editCache[record.id].output" rows="3" />
+                      <label class="text-sm font-medium text-muted-foreground mb-1 block">输出</label>
+                      <Textarea v-model="editCache[row.original.id].output" rows="3" />
           </div>
-
           <div class="space-y-2">
             <p class="text-sm font-medium text-muted-foreground">Tags</p>
             <div class="flex flex-wrap gap-2">
-              <Badge v-for="tag in record.tags || []" :key="tag" variant="outline">
+                        <Badge v-for="tag in row.original.tags || []" :key="tag" variant="outline">
                 #{{ tag }}
               </Badge>
-              <span v-if="!record.tags || record.tags.length === 0" class="text-xs text-muted-foreground">暂无标签</span>
+                        <span v-if="!row.original.tags || row.original.tags.length === 0" class="text-xs text-muted-foreground">暂无标签</span>
             </div>
             <div class="flex gap-2">
               <Input
-                v-model="tagInputCache[record.id]"
+                          v-model="tagInputCache[row.original.id]"
                 placeholder="输入标签，逗号分隔"
               />
-              <Button size="sm" variant="secondary" @click="saveTags(record)">更新</Button>
+                        <Button size="sm" variant="secondary" @click="saveTags(row.original)">更新标签</Button>
             </div>
           </div>
-
-          <div>
-            <p class="text-sm font-medium text-muted-foreground mb-2">数据集归属</p>
-            <div class="flex flex-wrap gap-3">
-              <label
-                v-for="dataset in datasets"
-                :key="dataset.id"
-                class="flex items-center gap-2 text-sm"
-              >
-                <input
-                  type="checkbox"
-                  :checked="isRecordInDataset(record.id, dataset.id)"
-                  @change="handleDatasetToggle(record.id, dataset.id, $event)"
-                />
-                {{ dataset.name }}
-              </label>
-              <span v-if="datasets.length === 0" class="text-xs text-muted-foreground">暂无数据集</span>
-            </div>
-          </div>
-        </div>
-
-        <div class="flex items-center justify-between text-sm text-muted-foreground">
-          <span>共 {{ filteredRecords.length }} 条，当前第 {{ currentPage }} 页</span>
-          <div class="flex gap-2">
-            <Button size="sm" variant="outline" :disabled="currentPage === 1" @click="changePage(-1)">
-              上一页
-            </Button>
-            <Button size="sm" variant="outline" :disabled="currentPage >= totalPages" @click="changePage(1)">
-              下一页
+                    <div class="flex justify-end">
+                      <Button size="sm" variant="outline" @click="saveRecord(row.original)">
+                        保存修改
             </Button>
           </div>
         </div>
+                </TableCell>
+              </TableRow>
+            </template>
+          </TableBody>
+        </Table>
+        <DataTablePagination :table="table" class="pt-2" />
       </div>
     </Card>
   </section>
 </template>
 
 <script setup lang="ts">
-import { ref, computed, onMounted, watch } from 'vue'
-import { fetchApps, fetchQueryRecords, fetchDatasets, fetchHitAnalyses, updateQueryRecord, addRecordToDataset, removeRecordFromDataset } from '@/lib/api'
-import type { App, QueryRecord, Dataset, HitAnalysis } from '@/types'
+import { ref, computed, onMounted, h } from 'vue'
+import type { ColumnDef, SortingState, ExpandedState, ColumnFiltersState, FilterFn } from '@tanstack/vue-table'
+import { FlexRender, getCoreRowModel, getExpandedRowModel, getFilteredRowModel, getPaginationRowModel, getSortedRowModel, useVueTable } from '@tanstack/vue-table'
+import { fetchApps, fetchQueryRecords, fetchHitAnalyses, updateQueryRecord } from '@/lib/api'
+import type { App, QueryRecord, HitAnalysis } from '@/types'
 import { formatDate } from '@/lib/utils'
 import { Card } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Textarea } from '@/components/ui/textarea'
 import { Input } from '@/components/ui/input'
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Badge } from '@/components/ui/badge'
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
+import { DataTablePagination } from '@/components/ui/data-table'
+import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover'
+import { ChevronRight } from 'lucide-vue-next'
+
+const ChevronRightIcon = ChevronRight
 
 const apps = ref<App[]>([])
-const datasets = ref<Dataset[]>([])
 const records = ref<QueryRecord[]>([])
 const hitAnalyses = ref<HitAnalysis[]>([])
 const loading = ref(false)
-const currentPage = ref(1)
-const pageSize = 6
 
-const timeRange = ref<'all' | '1d' | '7d' | '30d'>('all')
-const datasetFilter = ref('all')
-const hitFilter = ref('all')
-const sortOrder = ref<'asc' | 'desc'>('desc')
+const selectedAppId = ref('all')
+const startDate = ref('')
+const endDate = ref('')
+const globalFilter = ref('')
+const appSearch = ref('')
 
-const keyword = ref('')
 const editCache = ref<Record<string, { input: string; output: string }>>({})
 const tagInputCache = ref<Record<string, string>>({})
-const selectedTags = ref<string[]>([])
-const tagFilterLogic = ref<'and' | 'or'>('or')
-const tagSearch = ref('')
 const exportLoading = ref(false)
+const expanded = ref<ExpandedState>({})
+const sorting = ref<SortingState>([{ id: 'createdAt', desc: true }])
+const columnFilters = ref<ColumnFiltersState>([])
 
 const curatedRecords = computed(() => records.value.filter(r => r.curated))
 
@@ -231,98 +211,133 @@ const hitSummaryMap = computed(() => {
   return map
 })
 
-const datasetMembership = computed(() => {
-  const map: Record<string, Set<string>> = {}
-  datasets.value.forEach(dataset => {
-    dataset.queryRecordIds.forEach(id => {
-      if (!map[id]) map[id] = new Set()
-      map[id].add(dataset.id)
-    })
-  })
-  return map
+const filteredApps = computed(() => {
+  if (!appSearch.value.trim()) return apps.value
+  const keyword = appSearch.value.trim().toLowerCase()
+  return apps.value.filter(app => app.name.toLowerCase().includes(keyword))
 })
+
+function getSelectedAppCount() {
+  return selectedAppId.value !== 'all' ? 1 : 0
+}
+
+const globalFilterFn: FilterFn<QueryRecord> = (row, _columnId, filterValue) => {
+  const search = String(filterValue || '').toLowerCase()
+  if (!search) return true
+  const input = String(row.original.input || '').toLowerCase()
+  const output = String(row.original.output || '').toLowerCase()
+  return input.includes(search) || output.includes(search)
+}
 
 const filteredRecords = computed(() => {
   let result = curatedRecords.value.slice()
-  if (keyword.value.trim()) {
-    const kw = keyword.value.trim().toLowerCase()
-    result = result.filter(record =>
-      (record.input || '').toLowerCase().includes(kw) ||
-      (record.output || '').toLowerCase().includes(kw)
-    )
-  }
-  const now = Date.now()
-  if (timeRange.value !== 'all') {
-    const thresholdMap = {
-      '1d': 1,
-      '7d': 7,
-      '30d': 30
-    }
-    const days = thresholdMap[timeRange.value]
-    const ms = days * 24 * 60 * 60 * 1000
-    result = result.filter(r => now - new Date(r.updatedAt).getTime() <= ms)
-  }
-  if (datasetFilter.value === 'unassigned') {
-    result = result.filter(r => !datasetMembership.value[r.id] || datasetMembership.value[r.id].size === 0)
-  } else if (datasetFilter.value !== 'all') {
-    result = result.filter(r => datasetMembership.value[r.id]?.has(datasetFilter.value))
-  }
-  if (hitFilter.value !== 'all') {
-    result = result.filter(r => {
-      const summary = hitSummaryMap.value[r.id]
-      if (!summary) return hitFilter.value === 'none'
-      const totalHits = summary.exact + summary.high + summary.medium
-      if (hitFilter.value === 'none') return totalHits === 0
-      if (hitFilter.value === 'exact') return summary.exact > 0
-      if (hitFilter.value === '80') return summary.exact + summary.high > 0
-      if (hitFilter.value === '60') return totalHits > 0
-      return true
-    })
-  }
-  if (selectedTags.value.length > 0) {
-    result = result.filter(record => {
-      const tags = record.tags || []
-      if (tagFilterLogic.value === 'and') {
-        return selectedTags.value.every(tag => tags.includes(tag))
-      }
-      return selectedTags.value.some(tag => tags.includes(tag))
-    })
+
+  // 应用筛选
+  if (selectedAppId.value !== 'all') {
+    result = result.filter(record => record.appId === selectedAppId.value)
   }
 
-  result.sort((a, b) => {
-    const aHits = getTotalHits(a.id)
-    const bHits = getTotalHits(b.id)
-    return sortOrder.value === 'desc' ? bHits - aHits : aHits - bHits
-  })
+  // 日期筛选
+  if (startDate.value) {
+    const start = new Date(startDate.value).getTime()
+    result = result.filter(record => new Date(record.createdAt).getTime() >= start)
+  }
+
+  if (endDate.value) {
+    const end = new Date(endDate.value).getTime() + 24 * 60 * 60 * 1000 - 1
+    result = result.filter(record => new Date(record.createdAt).getTime() <= end)
+  }
+
+  // 全局搜索筛选
+  if (globalFilter.value.trim()) {
+    const keyword = globalFilter.value.trim().toLowerCase()
+    result = result.filter(record =>
+      (record.input || '').toLowerCase().includes(keyword) ||
+      (record.output || '').toLowerCase().includes(keyword)
+    )
+  }
+
   return result
 })
 
-const paginatedRecords = computed(() => {
-  const start = (currentPage.value - 1) * pageSize
-  return filteredRecords.value.slice(start, start + pageSize)
-})
-
-const totalPages = computed(() => Math.max(1, Math.ceil(filteredRecords.value.length / pageSize)))
-
-const tagOptions = computed(() => {
-  const set = new Set<string>()
-  curatedRecords.value.forEach(record => record.tags?.forEach(tag => set.add(tag)))
-  let options = Array.from(set).sort()
-  if (tagSearch.value) {
-    const keyword = tagSearch.value.toLowerCase()
-    options = options.filter(tag => tag.toLowerCase().includes(keyword))
+const columns = computed<ColumnDef<QueryRecord>[]>(() => [
+  {
+    id: 'expand',
+    header: '',
+    cell: ({ row }) =>
+      h(Button, {
+        variant: 'ghost',
+        size: 'sm',
+        class: 'h-8 w-8 p-0',
+        onClick: () => row.toggleExpanded()
+      }, () => h(ChevronRightIcon, { class: `h-4 w-4 transition-transform ${row.getIsExpanded() ? 'rotate-90' : ''}` }))
+  },
+  {
+    accessorKey: 'appId',
+    header: '应用',
+    cell: ({ row }) => h(Badge, null, () => getAppName(row.getValue('appId')))
+  },
+  {
+    id: 'hitSummary',
+    header: '命中统计',
+    cell: ({ row }) => h(Badge, { variant: 'secondary' }, () => `命中：${getHitSummary(row.original.id)}`)
+  },
+  {
+    accessorKey: 'input',
+    header: '输入',
+    cell: ({ row }) => h('div', { class: 'max-w-[300px] truncate', title: row.getValue('input') }, row.getValue('input'))
+  },
+  {
+    accessorKey: 'output',
+    header: '输出',
+    cell: ({ row }) => h('div', { class: 'max-w-[300px] truncate', title: row.getValue('output') }, row.getValue('output'))
+  },
+  {
+    id: 'lastAnalyzed',
+    header: '最近分析',
+    cell: ({ row }) => {
+      const lastAnalyzed = row.original.metadata?.lastAnalyzedAt
+      return lastAnalyzed ? formatDate(lastAnalyzed) : '—'
+    }
+  },
+  {
+    id: 'tags',
+    header: 'Tags',
+    cell: ({ row }) => {
+      const tags = row.original.tags || []
+      if (tags.length === 0) return '—'
+      return h('div', { class: 'flex flex-wrap gap-1' }, tags.map(tag => h(Badge, { key: tag, variant: 'outline' }, () => `#${tag}`)))
+    }
   }
-  return options
+])
+
+const table = useVueTable({
+  data: filteredRecords,
+  columns: columns.value,
+  state: {
+    get sorting() { return sorting.value },
+    get expanded() { return expanded.value },
+    get columnFilters() { return columnFilters.value },
+    get globalFilter() { return globalFilter.value }
+  },
+  onSortingChange: updater => sorting.value = typeof updater === 'function' ? updater(sorting.value) : updater,
+  onExpandedChange: updater => expanded.value = typeof updater === 'function' ? updater(expanded.value) : updater,
+  onColumnFiltersChange: updater => columnFilters.value = typeof updater === 'function' ? updater(columnFilters.value) : updater,
+  onGlobalFilterChange: updater => globalFilter.value = typeof updater === 'function' ? updater(globalFilter.value) : updater,
+  globalFilterFn,
+  getCoreRowModel: getCoreRowModel(),
+  getExpandedRowModel: getExpandedRowModel(),
+  getSortedRowModel: getSortedRowModel(),
+  getFilteredRowModel: getFilteredRowModel(),
+  getPaginationRowModel: getPaginationRowModel(),
+  initialState: {
+    pagination: { pageSize: 10, pageIndex: 0 }
+  }
 })
 
 function getAppName(appId: string) {
-  return apps.value.find(a => a.id === appId)?.name || appId
-}
-
-function getTotalHits(recordId: string) {
-  const summary = hitSummaryMap.value[recordId]
-  if (!summary) return 0
-  return summary.exact + summary.high + summary.medium
+  const app = apps.value.find(a => a.id === appId)
+  return app?.name || appId
 }
 
 function getHitSummary(recordId: string) {
@@ -331,28 +346,17 @@ function getHitSummary(recordId: string) {
   return `exact:${summary.exact} / high:${summary.high} / mid:${summary.medium} / none:${summary.none}`
 }
 
-function isRecordInDataset(recordId: string, datasetId: string) {
-  return datasetMembership.value[recordId]?.has(datasetId) ?? false
+function handleFilterChange() {
+  table.setPageIndex(0)
 }
 
-async function toggleDataset(recordId: string, datasetId: string, checked: boolean) {
-  try {
-    if (checked) {
-      await addRecordToDataset(datasetId, recordId)
-    } else {
-      await removeRecordFromDataset(datasetId, recordId)
-    }
-    await loadDatasets()
-  } catch (error) {
-    console.error('Failed to toggle dataset assignment:', error)
-    alert('操作失败')
-  }
-}
-
-function handleDatasetToggle(recordId: string, datasetId: string, event: Event) {
-  const target = event.target as HTMLInputElement | null
-  if (!target) return
-  toggleDataset(recordId, datasetId, target.checked)
+function resetFilters() {
+  selectedAppId.value = 'all'
+  startDate.value = ''
+  endDate.value = ''
+  globalFilter.value = ''
+  appSearch.value = ''
+  table.setPageIndex(0)
 }
 
 async function saveRecord(record: QueryRecord) {
@@ -394,26 +398,6 @@ function parseTagInput(value?: string) {
     .filter(Boolean)
 }
 
-function toggleSelectedTag(tag: string) {
-  if (selectedTags.value.includes(tag)) {
-    selectedTags.value = selectedTags.value.filter(t => t !== tag)
-  } else {
-    selectedTags.value = [...selectedTags.value, tag]
-  }
-  currentPage.value = 1
-}
-
-function toggleTagLogic() {
-  tagFilterLogic.value = tagFilterLogic.value === 'and' ? 'or' : 'and'
-  currentPage.value = 1
-}
-
-function changePage(delta: number) {
-  const target = currentPage.value + delta
-  if (target < 1 || target > totalPages.value) return
-  currentPage.value = target
-}
-
 async function loadApps() {
   try {
     apps.value = await fetchApps()
@@ -436,18 +420,19 @@ async function loadRecords() {
       page += 1
     }
     records.value = all
+    // 初始化编辑缓存
+    all.forEach(record => {
+      if (!editCache.value[record.id]) {
+        editCache.value[record.id] = { input: record.input, output: record.output }
+      }
+      if (tagInputCache.value[record.id] === undefined) {
+        tagInputCache.value[record.id] = (record.tags || []).join(', ')
+      }
+    })
   } catch (error) {
     console.error('Failed to load records:', error)
   } finally {
     loading.value = false
-  }
-}
-
-async function loadDatasets() {
-  try {
-    datasets.value = await fetchDatasets()
-  } catch (error) {
-    console.error('Failed to load datasets:', error)
   }
 }
 
@@ -459,24 +444,6 @@ async function loadHitAnalysesData() {
   }
 }
 
-watch(
-  () => curatedRecords.value,
-  curated => {
-    curated.forEach(record => {
-      if (!editCache.value[record.id]) {
-        editCache.value[record.id] = { input: record.input, output: record.output }
-      }
-      if (tagInputCache.value[record.id] === undefined) {
-        tagInputCache.value[record.id] = (record.tags || []).join(', ')
-      }
-    })
-  },
-  { immediate: true, deep: true }
-)
-
-watch([timeRange, datasetFilter, hitFilter, sortOrder, selectedTags, tagFilterLogic, keyword], () => {
-  currentPage.value = 1
-})
 
 async function exportRecords() {
   exportLoading.value = true
@@ -498,7 +465,7 @@ async function exportRecords() {
 }
 
 onMounted(async () => {
-  await Promise.all([loadApps(), loadRecords(), loadDatasets(), loadHitAnalysesData()])
+  await Promise.all([loadApps(), loadRecords(), loadHitAnalysesData()])
 })
 </script>
 

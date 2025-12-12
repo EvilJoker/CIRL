@@ -4,7 +4,6 @@ import DashboardPage from '@/pages/DashboardPage.vue'
 import QATrackingPage from '@/pages/QATrackingPage.vue'
 import QAManagementPage from '@/pages/QAManagementPage.vue'
 import FeedbackManagementPage from '@/pages/FeedbackManagementPage.vue'
-import QADatasetPage from '@/pages/QADatasetPage.vue'
 import TagManagementPage from '@/pages/TagManagementPage.vue'
 import HitAnalysisPage from '@/pages/HitAnalysisPage.vue'
 import ModelManagementPage from '@/pages/ModelManagementPage.vue'
@@ -19,7 +18,6 @@ const router = createRouter({
     { path: '/qa-tracking', name: 'qa-tracking', component: QATrackingPage },
     { path: '/qa-management', name: 'qa-management', component: QAManagementPage },
     { path: '/feedbacks', name: 'feedbacks', component: FeedbackManagementPage },
-    { path: '/qa-datasets', name: 'qa-datasets', component: QADatasetPage },
     { path: '/tag-management', name: 'tag-management', component: TagManagementPage },
     { path: '/hit-analysis', name: 'hit-analysis', component: HitAnalysisPage },
     { path: '/model-management', name: 'model-management', component: ModelManagementPage },

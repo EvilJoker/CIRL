@@ -8,18 +8,104 @@
     </div>
 
     <Card class="p-5 space-y-4">
-      <div class="flex flex-wrap items-center gap-3">
-        <Select v-model="selectedAppId" @update:model-value="handleFilterChange">
-          <SelectTrigger class="w-[200px]">
-            <SelectValue placeholder="选择应用" />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value="all">全部应用</SelectItem>
-            <SelectItem v-for="app in apps" :key="app.id" :value="app.id">
-              {{ app.name }}
-            </SelectItem>
-          </SelectContent>
-        </Select>
+      <div class="flex items-center gap-2">
+        <Input
+          v-model="globalFilter"
+          placeholder="筛选问答（输入/输出）..."
+          class="max-w-sm"
+          @keyup.enter="table.setPageIndex(0)"
+        />
+        <Popover>
+          <PopoverTrigger as-child>
+            <Button variant="outline" size="sm" class="gap-2">
+              <span>应用</span>
+              <span v-if="selectedAppId !== 'all'" class="ml-1 h-5 w-5 rounded-full bg-primary text-primary-foreground flex items-center justify-center text-xs">
+                {{ getSelectedAppCount() }}
+              </span>
+            </Button>
+          </PopoverTrigger>
+          <PopoverContent class="w-[200px] p-0" align="start">
+            <div class="p-2">
+              <Input
+                v-model="appSearch"
+                placeholder="搜索应用..."
+                class="h-8 mb-2"
+              />
+            </div>
+            <div class="max-h-[300px] overflow-auto">
+              <div class="p-1">
+                <label class="flex items-center gap-2 p-2 rounded hover:bg-accent cursor-pointer">
+                  <input
+                    type="radio"
+                    :checked="selectedAppId === 'all'"
+                    @change="selectedAppId = 'all'; handleFilterChange()"
+                    class="rounded"
+                  />
+                  <span class="text-sm">全部应用</span>
+                </label>
+                <label
+                  v-for="app in filteredApps"
+                  :key="app.id"
+                  class="flex items-center gap-2 p-2 rounded hover:bg-accent cursor-pointer"
+                >
+                  <input
+                    type="radio"
+                    :checked="selectedAppId === app.id"
+                    @change="selectedAppId = app.id; handleFilterChange()"
+                    class="rounded"
+                  />
+                  <span class="text-sm">{{ app.name }}</span>
+                </label>
+              </div>
+            </div>
+          </PopoverContent>
+        </Popover>
+        <Popover>
+          <PopoverTrigger as-child>
+            <Button variant="outline" size="sm" class="gap-2">
+              <span>状态</span>
+              <span v-if="selectedStatus" class="ml-1 text-xs text-muted-foreground">
+                {{ getStatusLabel(selectedStatus) }}
+              </span>
+            </Button>
+          </PopoverTrigger>
+          <PopoverContent class="w-[200px] p-0" align="start">
+            <div class="p-2">
+              <Input
+                v-model="statusSearch"
+                placeholder="搜索状态..."
+                class="h-8 mb-2"
+              />
+            </div>
+            <div class="max-h-[300px] overflow-auto">
+              <div class="p-1">
+                <label class="flex items-center gap-2 p-2 rounded hover:bg-accent cursor-pointer">
+                  <input
+                    type="radio"
+                    :checked="selectedStatus === ''"
+                    @change="selectedStatus = ''; handleFilterChange()"
+                    class="rounded"
+                  />
+                  <span class="text-sm">全部状态</span>
+                </label>
+                <label
+                  v-for="status in filteredStatuses"
+                  :key="status.value"
+                  class="flex items-center gap-2 p-2 rounded hover:bg-accent cursor-pointer"
+                >
+                  <input
+                    type="radio"
+                    :checked="selectedStatus === status.value"
+                    @change="selectedStatus = status.value; handleFilterChange()"
+                    class="rounded"
+                  />
+                  <span class="text-sm">{{ status.label }}</span>
+                </label>
+              </div>
+            </div>
+          </PopoverContent>
+        </Popover>
+        <div class="ml-auto flex items-center gap-2">
         <Input
           v-model="startDate"
           type="date"
@@ -34,15 +120,6 @@
           class="w-[150px]"
           @change="handleFilterChange"
         />
-        <Input
-          v-model="keyword"
-          placeholder="输入关键字（输入/输出）"
-          class="w-[220px]"
-          @keyup.enter="handleFilterChange"
-        />
-        <Button size="sm" variant="secondary" @click="handleFilterChange">
-          搜索
-        </Button>
         <Button variant="outline" size="sm" @click="resetFilters">
           重置
         </Button>
@@ -53,201 +130,139 @@
         >
           {{ exportLoading ? '导出中...' : '导出 JSON' }}
         </Button>
+        </div>
       </div>
 
       <div v-if="loading" class="text-center py-6 text-muted-foreground">
         加载中...
       </div>
-      <div v-else-if="records.length === 0" class="text-center py-6 text-muted-foreground">
+      <div v-else>
+        <Table>
+          <TableHeader>
+            <TableRow v-for="headerGroup in table.getHeaderGroups()" :key="headerGroup.id">
+              <TableHead v-for="header in headerGroup.headers" :key="header.id">
+                <span v-if="header.isPlaceholder" />
+                <FlexRender
+                  v-else
+                  :render="header.column.columnDef.header"
+                  :props="header.getContext()"
+                />
+              </TableHead>
+            </TableRow>
+          </TableHeader>
+          <TableBody>
+            <TableRow v-if="table.getRowModel().rows.length === 0">
+              <TableCell :colspan="table.getAllColumns().length" class="h-24 text-center text-muted-foreground">
         暂无问答记录
-      </div>
-      <div v-else class="space-y-2">
-        <div
-          v-for="record in records"
-          :key="record.id"
-          class="p-3 border rounded-lg hover:bg-muted/40 space-y-3 text-sm"
-        >
-          <template v-if="record.ignored">
-            <div class="flex items-center justify-between">
-              <div class="flex items-center gap-2 text-muted-foreground">
-                <Badge variant="outline">已忽略</Badge>
-                <span>{{ getAppName(record.appId) }}</span>
-              </div>
-              <Button size="sm" variant="outline" @click="toggleIgnore(record, false)">恢复显示</Button>
-            </div>
-            <p class="text-xs text-muted-foreground">
-              {{ formatDate(record.updatedAt) }}
-            </p>
-          </template>
-          <template v-else>
-            <div class="flex items-center gap-2 flex-wrap">
-              <Badge variant="secondary">{{ getAppName(record.appId) }}</Badge>
-              <Badge :variant="record.curated ? 'default' : 'outline'">
-                {{ record.curated ? '已纳入 QA 管理' : '未纳入 QA' }}
-              </Badge>
-              <Badge :variant="record.metadata?.lastAnalyzedAt ? 'default' : 'outline'">
-                {{ record.metadata?.lastAnalyzedAt ? '已分析' : '待分析' }}
-              </Badge>
-              <Badge v-if="record.metadata?.lastMatchType">
-                最近命中：{{ matchTypeLabel(record.metadata.lastMatchType) }}
-              </Badge>
-            </div>
-
-            <p>
-              <span class="text-xs text-muted-foreground">输入：</span>
-              {{ record.input }}
-            </p>
-            <p>
-              <span class="text-xs text-muted-foreground">输出：</span>
-              {{ record.output }}
-            </p>
-
-            <div class="flex flex-wrap gap-3 text-xs text-muted-foreground">
-              <span>创建：{{ formatDate(record.createdAt) }}</span>
-              <span v-if="record.metadata?.lastAnalyzedAt">
-                最近分析：{{ formatDate(record.metadata.lastAnalyzedAt) }}
-              </span>
-              <span v-if="record.metadata?.lastSimilarity !== undefined">
-                命中：{{ record.metadata.lastSimilarity }}%
-              </span>
-              <span v-if="record.metadata?.responseTime">
-                响应：{{ record.metadata.responseTime }} ms
-              </span>
-              <span>命中统计：{{ getHitSummary(record.id) }}</span>
-            </div>
-
-            <div class="flex gap-2">
-              <Button size="sm" @click="openFeedbackModal(record)">
-                提交反馈
-              </Button>
-              <Button
-                size="sm"
-                variant="outline"
-                :disabled="record.curated"
-                @click="addToQAManagement(record)"
-              >
-                {{ record.curated ? '已加入 QA 管理' : '加入 QA 管理' }}
-              </Button>
-              <Button size="sm" variant="ghost" @click="toggleIgnore(record, true)">
-                忽略
-              </Button>
-            </div>
-          </template>
-        </div>
-      </div>
-
-      <div class="flex items-center justify-between text-sm text-muted-foreground">
-        <span>共 {{ totalRecords }} 条，当前第 {{ currentPage }} 页</span>
-        <div class="flex gap-2">
-          <Button size="sm" variant="outline" :disabled="currentPage === 1" @click="changePage(-1)">上一页</Button>
-          <Button
-            size="sm"
-            variant="outline"
-            :disabled="currentPage >= totalPages"
-            @click="changePage(1)"
-          >
-            下一页
-          </Button>
-        </div>
+              </TableCell>
+            </TableRow>
+            <TableRow
+              v-for="row in table.getRowModel().rows"
+              :key="row.id"
+            >
+              <TableCell v-for="cell in row.getVisibleCells()" :key="cell.id">
+                <FlexRender :render="cell.column.columnDef.cell" :props="cell.getContext()" />
+              </TableCell>
+            </TableRow>
+          </TableBody>
+        </Table>
+        <DataTablePagination :table="table" class="pt-2" />
       </div>
     </Card>
 
-    <!-- 反馈对话框 -->
-    <Dialog :open="showFeedbackModal" @update:open="showFeedbackModal = $event">
-      <DialogContent>
+    <!-- 内容查看对话框 -->
+    <Dialog :open="showContentModal" @update:open="showContentModal = $event">
+      <DialogContent class="max-w-4xl max-h-[85vh]">
         <DialogHeader>
-          <DialogTitle>提交反馈</DialogTitle>
+          <DialogTitle>{{ contentDialogTitle }}</DialogTitle>
         </DialogHeader>
-        <div class="space-y-4">
-          <div>
-            <label class="block text-sm font-medium mb-1">反馈类型</label>
-            <Select v-model="feedbackForm.type">
-              <SelectTrigger>
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="positive">正面</SelectItem>
-                <SelectItem value="negative">负面</SelectItem>
-                <SelectItem value="neutral">中性</SelectItem>
-                <SelectItem value="correction">纠正</SelectItem>
-              </SelectContent>
-            </Select>
-          </div>
-          <div>
-            <label class="block text-sm font-medium mb-1">评分 (1-5)</label>
-            <Input v-model.number="feedbackForm.rating" type="number" min="1" max="5" />
-          </div>
-          <div>
-            <label class="block text-sm font-medium mb-1">反馈内容</label>
-            <Textarea v-model="feedbackForm.content" placeholder="输入反馈内容" />
+        <div class="max-h-[70vh] overflow-auto">
+          <div class="bg-muted p-4 rounded-lg border">
+            <pre class="whitespace-pre-wrap text-sm leading-relaxed">{{ contentDialogContent }}</pre>
           </div>
         </div>
         <DialogFooter>
-          <Button variant="outline" @click="showFeedbackModal = false">取消</Button>
-          <Button @click="handleSubmitFeedback">提交</Button>
+          <Button variant="outline" @click="showContentModal = false">关闭</Button>
         </DialogFooter>
       </DialogContent>
     </Dialog>
+
   </section>
 </template>
 
 <script setup lang="ts">
-import { ref, computed, onMounted } from 'vue'
-import { fetchApps, fetchQueryRecords, fetchHitAnalyses, createFeedback, updateQueryRecord } from '@/lib/api'
-import type { App, QueryRecord, HitAnalysis } from '@/types'
+import { ref, computed, onMounted, h } from 'vue'
+import type { ColumnDef, SortingState, ColumnFiltersState, FilterFn } from '@tanstack/vue-table'
+import { FlexRender, getCoreRowModel, getFilteredRowModel, getPaginationRowModel, getSortedRowModel, useVueTable } from '@tanstack/vue-table'
+import { fetchApps, fetchQueryRecords } from '@/lib/api'
+import type { App, QueryRecord } from '@/types'
 import { formatDate } from '@/lib/utils'
 import { Card } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
-import { Textarea } from '@/components/ui/textarea'
 import { Badge } from '@/components/ui/badge'
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog'
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
+import { DataTableColumnHeader, DataTablePagination } from '@/components/ui/data-table'
+import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover'
 
 const apps = ref<App[]>([])
 const records = ref<QueryRecord[]>([])
-const hitAnalyses = ref<HitAnalysis[]>([])
 const loading = ref(false)
-const currentPage = ref(1)
-const pageSize = 10
-const totalRecords = ref(0)
 const selectedAppId = ref('all')
 const startDate = ref('')
 const endDate = ref('')
-const keyword = ref('')
-const showFeedbackModal = ref(false)
-const currentRecord = ref<QueryRecord | null>(null)
-const feedbackForm = ref({ type: 'positive' as const, rating: 5, content: '' })
-const exportLoading = ref(false)
+const globalFilter = ref('')
+const appSearch = ref('')
+const statusSearch = ref('')
+const selectedStatus = ref<string>('')
 
-const hitSummaryMap = computed(() => {
-  const map: Record<string, { exact: number; high: number; medium: number; none: number }> = {}
-  hitAnalyses.value.forEach(analysis => {
-    if (!map[analysis.queryRecordId]) {
-      map[analysis.queryRecordId] = { exact: 0, high: 0, medium: 0, none: 0 }
-    }
-    map[analysis.queryRecordId][analysis.matchType] += 1
-  })
-  return map
+// 状态选项配置（可配置）
+const statusOptions = [
+  { value: 'curated', label: '已纳入 QA 管理' },
+  { value: 'notCurated', label: '未纳入 QA' },
+  { value: 'analyzed', label: '已分析' },
+  { value: 'pending', label: '待分析' },
+  { value: 'ignored', label: '已忽略' }
+]
+
+const filteredStatuses = computed(() => {
+  if (!statusSearch.value.trim()) return statusOptions
+  const keyword = statusSearch.value.trim().toLowerCase()
+  return statusOptions.filter(status => status.label.toLowerCase().includes(keyword))
 })
 
-function getHitSummary(recordId: string) {
-  const summary = hitSummaryMap.value[recordId]
-  if (!summary) return '无分析'
-  const total = summary.exact + summary.high + summary.medium + summary.none
-  return `命中 ${summary.exact + summary.high + summary.medium}/${total}`
+function getStatusLabel(value: string) {
+  if (!value) return ''
+  const status = statusOptions.find(s => s.value === value)
+  return status?.label || value
 }
 
-function matchTypeLabel(type?: string) {
-  if (!type) return '未分析'
-  const map: Record<string, string> = {
-    exact: '完全命中',
-    high: '80% 以上命中',
-    medium: '60% 以上命中',
-    none: '未命中'
-  }
-  return map[type] || type
+const showContentModal = ref(false)
+const contentDialogTitle = ref('')
+const contentDialogContent = ref('')
+const exportLoading = ref(false)
+const sorting = ref<SortingState>([{ id: 'createdAt', desc: true }])
+const columnFilters = ref<ColumnFiltersState>([])
+
+const filteredApps = computed(() => {
+  if (!appSearch.value.trim()) return apps.value
+  const keyword = appSearch.value.trim().toLowerCase()
+  return apps.value.filter(app => app.name.toLowerCase().includes(keyword))
+})
+
+function getSelectedAppCount() {
+  return selectedAppId.value !== 'all' ? 1 : 0
 }
+
+const globalFilterFn: FilterFn<QueryRecord> = (row, _columnId, filterValue) => {
+  const search = String(filterValue || '').toLowerCase()
+  if (!search) return true
+  const input = String(row.original.input || '').toLowerCase()
+  const output = String(row.original.output || '').toLowerCase()
+  return input.includes(search) || output.includes(search)
+}
+
 
 function getAppName(appId: string) {
   const app = apps.value.find(a => a.id === appId)
@@ -264,22 +279,20 @@ async function loadApps() {
 
 function buildQueryParams(pageOverride?: number, pageSizeOverride?: number) {
   const params: Record<string, any> = {
-    page: pageOverride ?? currentPage.value,
-    pageSize: pageSizeOverride ?? pageSize
+    page: pageOverride ?? 1,
+    pageSize: pageSizeOverride ?? 200
   }
   if (selectedAppId.value !== 'all') params.appId = selectedAppId.value
   if (startDate.value) params.startDate = startDate.value
   if (endDate.value) params.endDate = endDate.value
-  if (keyword.value.trim()) params.keyword = keyword.value.trim()
   return params
 }
 
 async function loadRecords() {
   loading.value = true
   try {
-    const result = await fetchQueryRecords(buildQueryParams())
+    const result = await fetchQueryRecords(buildQueryParams(1, 200))
     records.value = result.data
-    totalRecords.value = result.total
   } catch (error) {
     console.error('Failed to load records:', error)
   } finally {
@@ -287,81 +300,158 @@ async function loadRecords() {
   }
 }
 
-async function loadHitData() {
-  try {
-    const params: any = {}
-    if (selectedAppId.value !== 'all') params.appId = selectedAppId.value
-    if (startDate.value) params.startDate = startDate.value
-    if (endDate.value) params.endDate = endDate.value
-    if (keyword.value.trim()) params.keyword = keyword.value.trim()
-    hitAnalyses.value = await fetchHitAnalyses(params)
-  } catch (error) {
-    console.error('Failed to load hit analyses:', error)
+const columns = computed<ColumnDef<QueryRecord>[]>(() => [
+  {
+    accessorKey: 'appId',
+    header: '应用',
+    cell: ({ row }) => h(Badge, { variant: row.original.ignored ? 'outline' : 'secondary' }, () => getAppName(row.getValue('appId')))
+  },
+  {
+    id: 'status',
+    header: '状态',
+    cell: ({ row }) => {
+      const record = row.original
+      // 根据状态配置显示唯一状态
+      if (record.ignored) {
+        return h(Badge, { variant: 'outline' }, () => '已忽略')
+      }
+      if (record.curated) {
+        return h(Badge, { variant: 'default' }, () => '已纳入 QA 管理')
+      }
+      if (record.metadata?.lastAnalyzedAt) {
+        return h(Badge, { variant: 'default' }, () => '已分析')
+      }
+      return h(Badge, { variant: 'outline' }, () => '待分析')
+    }
+  },
+  {
+    accessorKey: 'input',
+    header: '输入',
+    cell: ({ row }) => {
+      const input = row.getValue('input') as string
+      const truncated = input.length > 50 ? input.substring(0, 50) + '...' : input
+      return h('div', {
+        class: 'max-w-[300px] truncate cursor-pointer hover:text-primary',
+        onClick: () => openContentDialog('输入', input)
+      }, truncated)
+    }
+  },
+  {
+    accessorKey: 'output',
+    header: '输出',
+    cell: ({ row }) => {
+      const output = row.getValue('output') as string
+      const truncated = output.length > 50 ? output.substring(0, 50) + '...' : output
+      return h('div', {
+        class: 'max-w-[300px] truncate cursor-pointer hover:text-primary',
+        onClick: () => openContentDialog('输出', output)
+      }, truncated)
+    }
+  },
+  {
+    accessorKey: 'createdAt',
+    header: ({ column }) => h(DataTableColumnHeader, { column, title: '创建时间' }),
+    cell: ({ row }) => formatDate(String(row.getValue('createdAt')))
+  },
+  {
+    id: 'tags',
+    header: 'Tag 管理',
+    cell: ({ row }) => {
+      const tags = row.original.tags || []
+      if (tags.length === 0) return h('span', { class: 'text-muted-foreground text-sm' }, '—')
+      return h('div', { class: 'flex flex-wrap gap-1' }, tags.map(tag => h(Badge, { key: tag, variant: 'outline' }, () => `#${tag}`)))
+    }
+  },
+])
+
+const filteredRecords = computed(() => {
+  let result = records.value.slice()
+
+  // 应用筛选
+  if (selectedAppId.value !== 'all') {
+    result = result.filter(record => record.appId === selectedAppId.value)
   }
-}
+
+  // 日期筛选
+  if (startDate.value) {
+    const start = new Date(startDate.value).getTime()
+    result = result.filter(record => new Date(record.createdAt).getTime() >= start)
+  }
+
+  if (endDate.value) {
+    const end = new Date(endDate.value).getTime() + 24 * 60 * 60 * 1000 - 1
+    result = result.filter(record => new Date(record.createdAt).getTime() <= end)
+  }
+
+  // 状态筛选（单选）
+  if (selectedStatus.value) {
+    result = result.filter(record => {
+      switch (selectedStatus.value) {
+        case 'curated':
+          return record.curated
+        case 'notCurated':
+          return !record.curated && !record.ignored
+        case 'analyzed':
+          return !!record.metadata?.lastAnalyzedAt
+        case 'pending':
+          return !record.metadata?.lastAnalyzedAt && !record.ignored
+        case 'ignored':
+          return record.ignored
+        default:
+          return true
+      }
+    })
+  }
+
+  return result
+})
+
+const table = useVueTable({
+  data: filteredRecords,
+  columns: columns.value,
+  state: {
+    get sorting() { return sorting.value },
+    get columnFilters() { return columnFilters.value },
+    get globalFilter() { return globalFilter.value }
+  },
+  onSortingChange: updater => sorting.value = typeof updater === 'function' ? updater(sorting.value) : updater,
+  onColumnFiltersChange: updater => columnFilters.value = typeof updater === 'function' ? updater(columnFilters.value) : updater,
+  onGlobalFilterChange: value => { globalFilter.value = value as string },
+  globalFilterFn,
+  getCoreRowModel: getCoreRowModel(),
+  getFilteredRowModel: getFilteredRowModel(),
+  getSortedRowModel: getSortedRowModel(),
+  getPaginationRowModel: getPaginationRowModel(),
+  initialState: {
+    pagination: { pageSize: 10, pageIndex: 0 }
+  }
+})
 
 function handleFilterChange() {
-  currentPage.value = 1
+  // 当应用或日期范围改变时，需要重新加载数据
+  // 输入/输出筛选是前端筛选，不需要重新加载
   loadRecords()
-  loadHitData()
 }
 
 function resetFilters() {
   selectedAppId.value = 'all'
   startDate.value = ''
   endDate.value = ''
-  keyword.value = ''
+  globalFilter.value = ''
+  appSearch.value = ''
+  statusSearch.value = ''
+  selectedStatus.value = ''
+  table.setPageIndex(0)
   handleFilterChange()
 }
 
-function openFeedbackModal(record: QueryRecord) {
-  currentRecord.value = record
-  showFeedbackModal.value = true
+function openContentDialog(title: string, content: string) {
+  contentDialogTitle.value = title
+  contentDialogContent.value = content
+  showContentModal.value = true
 }
 
-async function handleSubmitFeedback() {
-  if (!currentRecord.value) return
-  try {
-    await createFeedback({
-      queryRecordId: currentRecord.value.id,
-      ...feedbackForm.value
-    })
-    showFeedbackModal.value = false
-    feedbackForm.value = { type: 'positive', rating: 5, content: '' }
-    alert('反馈提交成功')
-  } catch (error) {
-    console.error('Failed to submit feedback:', error)
-    alert('提交失败')
-  }
-}
 
-async function addToQAManagement(record: QueryRecord) {
-  try {
-    await updateQueryRecord(record.id, { curated: true })
-    record.curated = true
-    alert('已加入 QA 管理')
-  } catch (error) {
-    console.error('Failed to update record:', error)
-    alert('操作失败')
-  }
-}
-
-async function toggleIgnore(record: QueryRecord, ignored: boolean) {
-  try {
-    await updateQueryRecord(record.id, { ignored })
-    record.ignored = ignored
-  } catch (error) {
-    console.error('Failed to toggle ignore:', error)
-    alert('操作失败')
-  }
-}
-
-function changePage(delta: number) {
-  const next = currentPage.value + delta
-  if (next < 1 || next > totalPages.value) return
-  currentPage.value = next
-  loadRecords()
-}
 
 async function exportRecords() {
   exportLoading.value = true
@@ -391,11 +481,9 @@ async function exportRecords() {
   }
 }
 
-const totalPages = computed(() => Math.max(1, Math.ceil(totalRecords.value / pageSize)))
-
 onMounted(() => {
   loadApps()
-  handleFilterChange()
+  loadRecords()
 })
 </script>
 
