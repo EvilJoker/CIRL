@@ -28,6 +28,7 @@ import {
 import { calculateSimilarity, getMatchType } from './similarityService.js'
 import { calculateEvaluationMetrics } from './evaluationService.js'
 import { swaggerSpec } from './swagger.js'
+import { logger, closeLogger } from './logger.js'
 
 const __filename = fileURLToPath(import.meta.url)
 const __dirname = dirname(__filename)
@@ -43,6 +44,23 @@ const PORT = process.env.PORT || 10001
 
 app.use(cors())
 app.use(express.json())
+
+// HTTP 请求日志中间件
+app.use((req, res, next) => {
+  const startTime = Date.now()
+  const originalEnd = res.end
+
+  res.end = function (...args) {
+    const duration = Date.now() - startTime
+    // 只记录 API 请求，跳过静态资源
+    if (req.path.startsWith('/api')) {
+      logger.request(req.method, req.path, res.statusCode, duration)
+    }
+    originalEnd.apply(this, args)
+  }
+
+  next()
+})
 
 // Swagger UI
 app.use('/api-docs', swaggerUi.serve, swaggerUi.setup(swaggerSpec, {
@@ -721,8 +739,10 @@ app.post('/api/query-records', async (req, res) => {
     }
     records.push(newRecord)
     await saveQueryRecords(records)
+    logger.debug(`创建问答记录: ${newRecord.id} (appId: ${appId})`)
     res.json(newRecord)
   } catch (error) {
+    logger.error('创建问答记录失败:', error)
     res.status(500).json({ error: error.message })
   }
 })
@@ -1936,8 +1956,10 @@ app.post('/api/models', async (req, res) => {
     }
     models.push(newModel)
     await saveModels(models)
+    logger.info(`创建模型配置: ${newModel.name} (id: ${newModel.id})`)
     res.json(newModel)
   } catch (error) {
+    logger.error('创建模型配置失败:', error)
     res.status(500).json({ error: error.message })
   }
 })
@@ -1978,8 +2000,10 @@ app.put('/api/models/:id', async (req, res) => {
       updatedAt: new Date().toISOString()
     }
     await saveModels(models)
+    logger.info(`更新模型配置: ${models[index].name} (id: ${req.params.id})`)
     res.json(models[index])
   } catch (error) {
+    logger.error(`更新模型配置失败 (id: ${req.params.id}):`, error)
     res.status(500).json({ error: error.message })
   }
 })
@@ -2003,13 +2027,17 @@ app.put('/api/models/:id', async (req, res) => {
 app.delete('/api/models/:id', async (req, res) => {
   try {
     const models = await readModels()
+    const modelToDelete = models.find(m => m.id === req.params.id)
     const filtered = models.filter(model => model.id !== req.params.id)
     if (filtered.length === models.length) {
+      logger.warn(`删除模型配置失败: 模型不存在 (id: ${req.params.id})`)
       return res.status(404).json({ error: 'Model not found' })
     }
     await saveModels(filtered)
+    logger.info(`删除模型配置: ${modelToDelete?.name || 'unknown'} (id: ${req.params.id})`)
     res.json({ success: true })
   } catch (error) {
+    logger.error(`删除模型配置失败 (id: ${req.params.id}):`, error)
     res.status(500).json({ error: error.message })
   }
 })
@@ -2045,15 +2073,20 @@ app.delete('/api/models/:id', async (req, res) => {
  *         description: 模型不存在
  */
 app.post('/api/models/:id/test', async (req, res) => {
+  const startTime = Date.now()
   try {
     const models = await readModels()
     const model = models.find(m => m.id === req.params.id)
     if (!model) {
+      logger.warn(`模型测试失败: 模型不存在 (id: ${req.params.id})`)
       return res.status(404).json({ ok: false, message: 'Model not found' })
     }
 
+    logger.info(`开始测试模型: ${model.name} (id: ${model.id}, baseUrl: ${model.baseUrl})`)
+
     // 验证必要字段
     if (!model.baseUrl || !model.apiKey || !model.model) {
+      logger.warn(`模型测试失败: 配置不完整 (id: ${model.id}, 缺少: ${!model.baseUrl ? 'baseUrl' : ''}${!model.apiKey ? ' apiKey' : ''}${!model.model ? ' model' : ''})`)
       return res.json({
         ok: false,
         message: '模型配置不完整：缺少 baseUrl、apiKey 或 model'
@@ -2090,6 +2123,7 @@ app.post('/api/models/:id/test', async (req, res) => {
       let result
       if (proxyUrl && urlObj.protocol === 'https:') {
         // 通过 HTTP 代理发送 HTTPS 请求（使用 CONNECT 隧道）
+        logger.debug(`使用代理: ${proxyUrl} 访问 ${testUrl}`)
         const proxy = new URL(proxyUrl)
         result = await new Promise((resolve, reject) => {
           // 第一步：通过 CONNECT 建立隧道
@@ -2164,6 +2198,7 @@ app.post('/api/models/:id/test', async (req, res) => {
         })
       } else {
         // 直接请求（无代理或 HTTP）
+        logger.debug(`直接访问 ${testUrl}${proxyUrl ? ' (未使用代理)' : ''}`)
         result = await new Promise((resolve, reject) => {
           const options = {
             hostname: urlObj.hostname,
@@ -2215,19 +2250,23 @@ app.post('/api/models/:id/test', async (req, res) => {
       }
 
       // 检查响应格式是否正确
+      const duration = Date.now() - startTime
       if (result.ok && result.data && result.data.choices && Array.isArray(result.data.choices) && result.data.choices.length > 0) {
+        logger.info(`模型测试成功: ${model.name} (id: ${model.id}, 耗时: ${duration}ms)`)
         return res.json({
           ok: true,
           message: '模型可用，连接测试成功',
           data: result.data  // 返回完整的 API 响应
         })
       } else if (result.ok) {
+        logger.warn(`模型测试失败: API 响应格式异常 (id: ${model.id}, 耗时: ${duration}ms)`, result.data)
         return res.json({
           ok: false,
           message: 'API 响应格式异常',
           data: result.data  // 返回原始响应以便调试
         })
       } else {
+        logger.error(`模型测试失败: ${model.name} (id: ${model.id}, 耗时: ${duration}ms)`, result.message)
         return res.json({
           ok: false,
           message: result.message || 'API 请求失败',
@@ -2236,6 +2275,8 @@ app.post('/api/models/:id/test', async (req, res) => {
       }
     } catch (fetchError) {
       // 网络错误或连接失败
+      const duration = Date.now() - startTime
+      logger.error(`模型测试异常: ${model.name} (id: ${model.id}, 耗时: ${duration}ms)`, fetchError.message || fetchError)
       return res.json({
         ok: false,
         message: fetchError.message || '无法连接到模型 API，请检查 baseUrl 和网络连接'
@@ -2258,32 +2299,35 @@ app.get('*', (req, res) => {
 })
 
 const server = app.listen(PORT, () => {
-  console.log(`CIRL server running on http://localhost:${PORT}`)
+  logger.info(`CIRL server running on http://localhost:${PORT}`)
 })
 
 // 优雅关闭：确保写缓冲数据不丢失
 async function gracefulShutdown(signal) {
-  console.log(`\n收到 ${signal} 信号，正在优雅关闭...`)
+  logger.info(`收到 ${signal} 信号，正在优雅关闭...`)
 
   // 关闭 HTTP 服务器，停止接收新请求
   server.close(async () => {
-    console.log('HTTP 服务器已关闭')
+    logger.info('HTTP 服务器已关闭')
 
     // 关闭 Provider，刷新所有写缓冲
     try {
       const { closeProvider } = await import('./providers/index.js')
       await closeProvider()
-      console.log('数据已保存，Provider 已关闭')
+      logger.info('数据已保存，Provider 已关闭')
     } catch (error) {
-      console.error('关闭 Provider 时出错:', error)
+      logger.error('关闭 Provider 时出错:', error)
     }
+
+    // 关闭日志流
+    await closeLogger()
 
     process.exit(0)
   })
 
   // 如果 10 秒内未正常关闭，强制退出
   setTimeout(() => {
-    console.error('强制退出（超时）')
+    logger.error('强制退出（超时）')
     process.exit(1)
   }, 10000)
 }

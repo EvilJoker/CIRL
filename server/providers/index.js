@@ -1,5 +1,6 @@
 import { JsonProvider } from './jsonProvider.js'
 import { SqliteProvider } from './sqliteProvider.js'
+import { logger } from '../logger.js'
 
 /**
  * Provider 管理器
@@ -35,7 +36,7 @@ export async function getProvider(type = null) {
   }
 
   providerType = type
-  console.log(`✓ 使用数据 Provider: ${type}`)
+  logger.info(`使用数据 Provider: ${type}`)
 
   return providerInstance
 }

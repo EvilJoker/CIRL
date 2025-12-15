@@ -6,6 +6,7 @@ import { fileURLToPath } from 'url'
 import { dirname, join } from 'path'
 import { existsSync, readFileSync } from 'fs'
 import { writeFile } from 'fs/promises'
+import { logger } from '../logger.js'
 
 const __filename = fileURLToPath(import.meta.url)
 const __dirname = dirname(__filename)
@@ -92,11 +93,11 @@ export class SqliteProvider extends BaseProvider {
       // 从文件加载数据库
       const buffer = readFileSync(dbPath)
       this.db = new SQLInstance.Database(buffer)
-      console.log('✓ SQLite 数据库已加载')
+      logger.info('SQLite 数据库已加载')
     } else {
       // 创建新数据库
       this.db = new SQLInstance.Database()
-      console.log('✓ 新 SQLite 数据库已创建')
+      logger.info('新 SQLite 数据库已创建')
     }
 
     // 启用外键约束
@@ -107,10 +108,10 @@ export class SqliteProvider extends BaseProvider {
     // 检查表是否存在，如果不存在则初始化 schema
     const tablesExist = this.checkTablesExist()
     if (!tablesExist) {
-      console.log('检测到数据库表不存在，正在初始化...')
+      logger.info('检测到数据库表不存在，正在初始化...')
       this.initializeSchema()
       await this.saveDatabase() // 异步保存
-      console.log('✓ 数据库表已初始化')
+      logger.info('数据库表已初始化')
     }
 
     this.initialized = true
@@ -142,7 +143,7 @@ export class SqliteProvider extends BaseProvider {
       try {
         await this.saveDatabase()
       } catch (error) {
-        console.error('保存数据库失败:', error)
+        logger.error('保存数据库失败:', error)
       }
     }, this.saveInterval)
   }
