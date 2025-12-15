@@ -1,7 +1,7 @@
 <template>
   <section class="space-y-6">
     <div>
-      <h2 class="text-xl font-semibold mb-2">Dashboard</h2>
+      <h2 class="text-xl font-semibold mb-2">APP 监控</h2>
       <p class="text-sm text-muted-foreground">应用请求统计监控</p>
     </div>
 

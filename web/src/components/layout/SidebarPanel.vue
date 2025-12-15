@@ -64,7 +64,7 @@ import {
   ClipboardList,
   MessageCircle,
   Tags,
-  Target,
+  FileText,
   Settings,
   BarChart3
 } from 'lucide-vue-next'
@@ -77,7 +77,7 @@ type RouteTab =
   | 'qa-tracking'
   | 'qa-management'
   | 'tag-management'
-  | 'hit-analysis'
+  | 'app-report'
   | 'model-management'
   | 'evaluation'
   | 'feedbacks'
@@ -89,11 +89,11 @@ const currentTab = computed<RouteTab>(() => {
 
 const navItems = [
   { id: 'apps', label: 'APP 管理', icon: Database },
-  { id: 'dashboard', label: 'Dashboard', icon: LayoutDashboard },
+  { id: 'dashboard', label: 'APP 监控', icon: LayoutDashboard },
   { id: 'qa-tracking', label: 'QA 跟踪', icon: MessageSquare },
   { id: 'qa-management', label: 'QA 管理', icon: ClipboardList },
   { id: 'tag-management', label: 'Tag 管理', icon: Tags },
-  { id: 'hit-analysis', label: '命中分析', icon: Target },
+  { id: 'app-report', label: 'APP 报告', icon: FileText },
   { id: 'model-management', label: '模型管理', icon: Settings },
   { id: 'evaluation', label: '效果评估', icon: BarChart3 },
   { id: 'feedbacks', label: 'Feedback 管理', icon: MessageCircle },

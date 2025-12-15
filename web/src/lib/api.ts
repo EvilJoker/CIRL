@@ -411,6 +411,21 @@ export async function deleteModel(id: string): Promise<void> {
   if (!res.ok) throw new Error('Failed to delete model')
 }
 
+export async function testModel(id: string): Promise<{ ok: boolean; message?: string; data?: any }> {
+  const res = await fetch(`${API_BASE}/models/${id}/test`, {
+    method: 'POST'
+  })
+  if (!res.ok) throw new Error('Failed to test model')
+  const result = await res.json()
+  // 后端返回格式：{ ok: boolean, message: string, data?: any }
+  // data 字段包含大模型的完整响应
+  return {
+    ok: Boolean(result.ok ?? result.success ?? res.ok),
+    message: result.message ?? result.msg ?? '',
+    data: result.data  // 返回完整的大模型响应数据
+  }
+}
+
 // ========== 统计（Stats）API ==========
 
 export interface TimelinePoint {
@@ -438,4 +453,24 @@ export async function fetchRequestStats(appIds?: string[]): Promise<Record<strin
   if (!res.ok) throw new Error('Failed to fetch request stats')
   const result = await res.json()
   return result.data || {}
+}
+
+// ========== 报告生成 ==========
+
+export async function generateAppReport(data: {
+  appId: string
+  modelId: string
+  startDate: string
+  endDate: string
+  topQuestions?: { question: string; count: number }[]
+  sampleRecords?: { id: string; question: string; answer: string; createdAt: string }[]
+}): Promise<{ markdown: string }> {
+  const res = await fetch(`${API_BASE}/reports/app`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(data)
+  })
+  if (!res.ok) throw new Error('Failed to generate app report')
+  const result = await res.json()
+  return { markdown: result.markdown || result.data?.markdown || '' }
 }

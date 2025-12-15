@@ -80,8 +80,25 @@ if [ "$1" == "--local" ]; then
     export PORT=${PORT:-10001}
     export NODE_ENV=${NODE_ENV:-development}
 
+    # 确保使用 nvm 的 Node.js（如果可用）
+    if [ -s "$HOME/.nvm/nvm.sh" ]; then
+        source "$HOME/.nvm/nvm.sh"
+        # 使用默认版本或 Node.js 20+
+        if nvm use default 2>/dev/null || nvm use 20 2>/dev/null || nvm use 24 2>/dev/null; then
+            echo "✅ 使用 Node.js $(node --version)"
+        fi
+    fi
+
+    # 检查 Node.js 版本是否符合要求
+    NODE_VERSION=$(node --version | sed 's/v//' | cut -d. -f1)
+    if [ "$NODE_VERSION" -lt 20 ]; then
+        echo "❌ 错误: Node.js 版本过低 ($(node --version))，需要 >= 20.0.0"
+        echo "   请运行: source ~/.nvm/nvm.sh && nvm install 20 && nvm use 20"
+        exit 1
+    fi
+
     # 启动后端服务器（后台运行）
-    echo "🔧 启动后端服务器 (端口 ${PORT}, Provider: ${DATA_PROVIDER})..."
+    echo "🔧 启动后端服务器 (端口 ${PORT}, Provider: ${DATA_PROVIDER}, Node.js $(node --version))..."
     node server/index.js > server.log 2>&1 &
     SERVER_PID=$!
 
@@ -216,6 +233,18 @@ else
 
     echo "✅ 项目文件检查通过"
 
+    # 检查并显示代理配置（如果存在）
+    if [ -n "$HTTP_PROXY" ] || [ -n "$http_proxy" ] || [ -n "$HTTPS_PROXY" ] || [ -n "$https_proxy" ]; then
+        echo "🌐 检测到代理配置："
+        [ -n "$HTTP_PROXY" ] && echo "   HTTP_PROXY=$HTTP_PROXY"
+        [ -n "$http_proxy" ] && echo "   http_proxy=$http_proxy"
+        [ -n "$HTTPS_PROXY" ] && echo "   HTTPS_PROXY=$HTTPS_PROXY"
+        [ -n "$https_proxy" ] && echo "   https_proxy=$https_proxy"
+        echo "   代理配置将自动传递到容器中"
+    else
+        echo "ℹ️  未检测到代理配置，如果容器无法访问外部网络，请设置 HTTP_PROXY/HTTPS_PROXY 环境变量"
+    fi
+
     # 构建并启动容器
     echo "🔨 构建 Docker 镜像..."
     cd docker
@@ -228,6 +257,7 @@ else
     fi
 
     echo "🚀 启动容器..."
+    # 确保代理环境变量传递给 docker-compose
     if docker-compose up -d 2>/dev/null || docker compose up -d 2>/dev/null; then
         echo "✅ 容器启动成功"
         cd ..

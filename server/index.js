@@ -3,6 +3,9 @@ import cors from 'cors'
 import swaggerUi from 'swagger-ui-express'
 import { fileURLToPath } from 'url'
 import { dirname, join } from 'path'
+import https from 'https'
+import http from 'http'
+import { URL } from 'url'
 import {
   readApps,
   saveApps,
@@ -2008,6 +2011,241 @@ app.delete('/api/models/:id', async (req, res) => {
     res.json({ success: true })
   } catch (error) {
     res.status(500).json({ error: error.message })
+  }
+})
+
+/**
+ * @swagger
+ * /api/models/{id}/test:
+ *   post:
+ *     summary: 测试模型连通性
+ *     description: 测试模型配置是否正确，能否正常调用模型 API
+ *     tags: [Models]
+ *     parameters:
+ *       - in: path
+ *         name: id
+ *         required: true
+ *         schema:
+ *           type: string
+ *     responses:
+ *       200:
+ *         description: 测试结果
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 ok:
+ *                   type: boolean
+ *                   description: 是否成功
+ *                 message:
+ *                   type: string
+ *                   description: 测试结果消息
+ *       404:
+ *         description: 模型不存在
+ */
+app.post('/api/models/:id/test', async (req, res) => {
+  try {
+    const models = await readModels()
+    const model = models.find(m => m.id === req.params.id)
+    if (!model) {
+      return res.status(404).json({ ok: false, message: 'Model not found' })
+    }
+
+    // 验证必要字段
+    if (!model.baseUrl || !model.apiKey || !model.model) {
+      return res.json({
+        ok: false,
+        message: '模型配置不完整：缺少 baseUrl、apiKey 或 model'
+      })
+    }
+
+    // 调用 OpenAI 兼容的 API 进行测试
+    // 根据 DeepSeek 文档：https://api-docs.deepseek.com/zh-cn/
+    // base_url 可以是：
+    //   - https://api.deepseek.com（推荐，文档示例使用此格式）
+    //   - https://api.deepseek.com/v1（兼容 OpenAI 格式）
+    // 文档示例：curl https://api.deepseek.com/chat/completions
+    // 无论 baseUrl 是否包含 /v1，都直接拼接 /chat/completions
+    const baseUrlClean = model.baseUrl.replace(/\/$/, '') // 移除末尾的斜杠
+    const testUrl = `${baseUrlClean}/chat/completions`
+
+    const testPayload = {
+      model: model.model,
+      messages: [
+        {
+          role: 'user',
+          content: 'who are you'
+        }
+      ],
+      stream: false, // 明确指定非流式输出（符合文档示例）
+      max_tokens: 5
+    }
+
+    try {
+      // 使用原生 https 模块，支持代理配置
+      const urlObj = new URL(testUrl)
+      const proxyUrl = process.env.HTTPS_PROXY || process.env.HTTP_PROXY || process.env.https_proxy || process.env.http_proxy
+
+      let result
+      if (proxyUrl && urlObj.protocol === 'https:') {
+        // 通过 HTTP 代理发送 HTTPS 请求（使用 CONNECT 隧道）
+        const proxy = new URL(proxyUrl)
+        result = await new Promise((resolve, reject) => {
+          // 第一步：通过 CONNECT 建立隧道
+          const connectOptions = {
+            hostname: proxy.hostname,
+            port: proxy.port || 80,
+            method: 'CONNECT',
+            path: `${urlObj.hostname}:${urlObj.port || 443}`,
+            timeout: 30000
+          }
+
+          const connectReq = http.request(connectOptions)
+          connectReq.on('connect', (res, socket, head) => {
+            if (res.statusCode === 200) {
+              // 隧道建立成功，通过 socket 发送 HTTPS 请求
+              const httpsOptions = {
+                hostname: urlObj.hostname,
+                port: urlObj.port || 443,
+                path: urlObj.pathname + urlObj.search,
+                method: 'POST',
+                headers: {
+                  'Content-Type': 'application/json',
+                  'Authorization': `Bearer ${model.apiKey}`
+                },
+                socket: socket,
+                agent: false
+              }
+
+              const httpsReq = https.request(httpsOptions, (response) => {
+                let data = ''
+                response.on('data', chunk => { data += chunk })
+                response.on('end', () => {
+                  if (response.statusCode >= 200 && response.statusCode < 300) {
+                    try {
+                      const json = JSON.parse(data)
+                      resolve({ ok: true, data: json, status: response.statusCode })
+                    } catch (e) {
+                      resolve({ ok: false, message: '响应解析失败', status: response.statusCode })
+                    }
+                  } else {
+                    try {
+                      const errorJson = JSON.parse(data)
+                      resolve({ ok: false, message: errorJson.error?.message || errorJson.message || `HTTP ${response.statusCode}`, status: response.statusCode })
+                    } catch {
+                      resolve({ ok: false, message: `HTTP ${response.statusCode}`, status: response.statusCode })
+                    }
+                  }
+                })
+              })
+
+              httpsReq.on('error', (err) => {
+                reject(new Error(`HTTPS 请求失败: ${err.message}`))
+              })
+
+              httpsReq.write(JSON.stringify(testPayload))
+              httpsReq.end()
+            } else {
+              reject(new Error(`代理连接失败: ${res.statusCode}`))
+            }
+          })
+
+          connectReq.on('error', (err) => {
+            reject(new Error(`代理连接失败: ${err.message}`))
+          })
+
+          connectReq.on('timeout', () => {
+            connectReq.destroy()
+            reject(new Error('代理连接超时'))
+          })
+
+          connectReq.end()
+        })
+      } else {
+        // 直接请求（无代理或 HTTP）
+        result = await new Promise((resolve, reject) => {
+          const options = {
+            hostname: urlObj.hostname,
+            port: urlObj.port || (urlObj.protocol === 'https:' ? 443 : 80),
+            path: urlObj.pathname + urlObj.search,
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+              'Authorization': `Bearer ${model.apiKey}`
+            },
+            timeout: 30000
+          }
+
+          const client = urlObj.protocol === 'https:' ? https : http
+          const req = client.request(options, (response) => {
+            let data = ''
+            response.on('data', chunk => { data += chunk })
+            response.on('end', () => {
+              if (response.statusCode >= 200 && response.statusCode < 300) {
+                try {
+                  const json = JSON.parse(data)
+                  resolve({ ok: true, data: json, status: response.statusCode })
+                } catch (e) {
+                  resolve({ ok: false, message: '响应解析失败', status: response.statusCode })
+                }
+              } else {
+                try {
+                  const errorJson = JSON.parse(data)
+                  resolve({ ok: false, message: errorJson.error?.message || errorJson.message || `HTTP ${response.statusCode}`, status: response.statusCode })
+                } catch {
+                  resolve({ ok: false, message: `HTTP ${response.statusCode}`, status: response.statusCode })
+                }
+              }
+            })
+          })
+
+          req.on('error', (err) => {
+            reject(new Error(`请求失败: ${err.message}`))
+          })
+
+          req.on('timeout', () => {
+            req.destroy()
+            reject(new Error('请求超时'))
+          })
+
+          req.write(JSON.stringify(testPayload))
+          req.end()
+        })
+      }
+
+      // 检查响应格式是否正确
+      if (result.ok && result.data && result.data.choices && Array.isArray(result.data.choices) && result.data.choices.length > 0) {
+        return res.json({
+          ok: true,
+          message: '模型可用，连接测试成功',
+          data: result.data  // 返回完整的 API 响应
+        })
+      } else if (result.ok) {
+        return res.json({
+          ok: false,
+          message: 'API 响应格式异常',
+          data: result.data  // 返回原始响应以便调试
+        })
+      } else {
+        return res.json({
+          ok: false,
+          message: result.message || 'API 请求失败',
+          data: result.data || null  // 如果有错误响应数据也返回
+        })
+      }
+    } catch (fetchError) {
+      // 网络错误或连接失败
+      return res.json({
+        ok: false,
+        message: fetchError.message || '无法连接到模型 API，请检查 baseUrl 和网络连接'
+      })
+    }
+  } catch (error) {
+    res.status(500).json({
+      ok: false,
+      message: error.message || '测试失败'
+    })
   }
 })
 

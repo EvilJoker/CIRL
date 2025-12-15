@@ -35,6 +35,14 @@ services:
       - SQLITE_DB_PATH=/app/data/cirl.db
       - WRITE_BUFFER_BATCH_SIZE=${WRITE_BUFFER_BATCH_SIZE:-100}  # 写缓冲批次大小（达到此数量时触发写入）
       - WRITE_BUFFER_FLUSH_INTERVAL=${WRITE_BUFFER_FLUSH_INTERVAL:-5000}  # 写缓冲刷新间隔（毫秒）
+      # 代理配置（自动从主机环境获取，用于访问外部 API，如 DeepSeek）
+      # 支持大小写变体，优先使用大写，如果不存在则使用小写
+      - HTTP_PROXY=${HTTP_PROXY:-${http_proxy:-}}
+      - HTTPS_PROXY=${HTTPS_PROXY:-${https_proxy:-}}
+      - http_proxy=${http_proxy:-${HTTP_PROXY:-}}
+      - https_proxy=${https_proxy:-${HTTPS_PROXY:-}}
+      - NO_PROXY=${NO_PROXY:-${no_proxy:-localhost,127.0.0.1,.local}}
+      - no_proxy=${no_proxy:-${NO_PROXY:-localhost,127.0.0.1,.local}}
     ports:
       - "10001:10001"
     restart: unless-stopped
@@ -50,4 +58,8 @@ services:
 networks:
   cirl-network:
     driver: bridge
+    # 如果需要访问外部网络，可以配置 DNS
+    # dns:
+    #   - 8.8.8.8
+    #   - 8.8.4.4
 

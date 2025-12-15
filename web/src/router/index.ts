@@ -5,7 +5,7 @@ import QATrackingPage from '@/pages/QATrackingPage.vue'
 import QAManagementPage from '@/pages/QAManagementPage.vue'
 import FeedbackManagementPage from '@/pages/FeedbackManagementPage.vue'
 import TagManagementPage from '@/pages/TagManagementPage.vue'
-import HitAnalysisPage from '@/pages/HitAnalysisPage.vue'
+import AppReportPage from '@/pages/AppReportPage.vue'
 import ModelManagementPage from '@/pages/ModelManagementPage.vue'
 import EvaluationPage from '@/pages/EvaluationPage.vue'
 
@@ -19,7 +19,7 @@ const router = createRouter({
     { path: '/qa-management', name: 'qa-management', component: QAManagementPage },
     { path: '/feedbacks', name: 'feedbacks', component: FeedbackManagementPage },
     { path: '/tag-management', name: 'tag-management', component: TagManagementPage },
-    { path: '/hit-analysis', name: 'hit-analysis', component: HitAnalysisPage },
+    { path: '/app-report', name: 'app-report', component: AppReportPage },
     { path: '/model-management', name: 'model-management', component: ModelManagementPage },
     { path: '/evaluation', name: 'evaluation', component: EvaluationPage },
     {

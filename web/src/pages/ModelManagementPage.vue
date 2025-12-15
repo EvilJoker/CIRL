@@ -93,6 +93,87 @@
       </DialogContent>
     </Dialog>
   </section>
+
+  <Dialog :open="showTestDialog" @update:open="showTestDialog = $event">
+    <DialogContent class="max-w-3xl max-h-[90vh] overflow-y-auto">
+      <DialogHeader>
+        <DialogTitle>模型连通性测试</DialogTitle>
+      </DialogHeader>
+      <div class="space-y-4 text-sm">
+        <!-- 模型信息 -->
+        <div v-if="testingModel">
+          <p class="font-medium mb-2">模型信息</p>
+          <div class="bg-muted rounded p-3 space-y-1">
+            <div class="flex justify-between">
+              <span class="text-muted-foreground">名称：</span>
+              <span class="font-medium">{{ testingModel.name }}</span>
+            </div>
+            <div class="flex justify-between">
+              <span class="text-muted-foreground">模型 ID：</span>
+              <span class="font-medium">{{ testingModel.model }}</span>
+            </div>
+            <div class="flex justify-between">
+              <span class="text-muted-foreground">Provider：</span>
+              <span class="font-medium">{{ testingModel.provider }}</span>
+            </div>
+            <div class="flex justify-between">
+              <span class="text-muted-foreground">Base URL：</span>
+              <span class="font-medium break-all">{{ testingModel.baseUrl }}</span>
+            </div>
+          </div>
+        </div>
+
+        <!-- 请求信息 -->
+        <div>
+          <p class="font-medium mb-2">请求</p>
+          <div class="space-y-3">
+            <div>
+              <p class="text-xs text-muted-foreground mb-1">后端测试 API</p>
+              <pre class="bg-muted rounded p-3 overflow-x-auto whitespace-pre-wrap text-xs">{{ JSON.stringify(testRequest?.backend, null, 2) }}</pre>
+            </div>
+            <div>
+              <p class="text-xs text-muted-foreground mb-1">实际模型 API 调用（curl 命令）</p>
+              <pre class="bg-muted rounded p-3 overflow-x-auto whitespace-pre-wrap text-xs font-mono">{{ curlCommand }}</pre>
+            </div>
+          </div>
+        </div>
+
+        <!-- 响应信息 -->
+        <div>
+          <p class="font-medium mb-2">响应</p>
+          <div v-if="testLoading" class="text-muted-foreground py-3">请求中...</div>
+          <pre v-else-if="testResponse" class="bg-muted rounded p-3 overflow-x-auto whitespace-pre-wrap text-xs">{{ JSON.stringify(testResponse, null, 2) }}</pre>
+          <div
+            v-if="testSuccess !== null && !testLoading"
+            :class="testSuccess ? 'bg-green-50 border-green-200 text-green-800' : 'bg-red-50 border-red-200 text-red-800'"
+            class="border rounded p-3 mt-2"
+          >
+            <p class="font-medium">
+              {{ testSuccess ? '✓ 模型可用' : '✗ 模型不可用' }}
+            </p>
+            <p v-if="testResponse?.message" class="text-sm mt-1 opacity-90">
+              {{ testResponse.message }}
+            </p>
+          </div>
+        </div>
+      </div>
+      <DialogFooter class="gap-2">
+        <Button
+          variant="outline"
+          @click="showTestDialog = false"
+        >
+          关闭
+        </Button>
+        <Button
+          v-if="testingModel"
+          @click="retryTest"
+          :disabled="testLoading"
+        >
+          {{ testLoading ? '测试中...' : '测试连接' }}
+        </Button>
+      </DialogFooter>
+    </DialogContent>
+  </Dialog>
 </template>
 
 <script setup lang="ts">
@@ -104,7 +185,7 @@ import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import { formatDate } from '@/lib/utils'
-import { fetchModels, createModel, updateModel, deleteModel } from '@/lib/api'
+import { fetchModels, createModel, updateModel, deleteModel, testModel } from '@/lib/api'
 import type { ModelConfig } from '@/types'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
 import { DataTableColumnHeader, DataTablePagination, DataTableViewOptions } from '@/components/ui/data-table'
@@ -114,6 +195,14 @@ const models = ref<ModelConfig[]>([])
 const loading = ref(false)
 const showDialog = ref(false)
 const editingModel = ref<ModelConfig | null>(null)
+const testingId = ref<string | null>(null)
+const testingModel = ref<ModelConfig | null>(null)
+const showTestDialog = ref(false)
+const testRequest = ref<any>(null)
+const testResponse = ref<any>(null)
+const testSuccess = ref<boolean | null>(null)
+const testLoading = ref(false)
+const curlCommand = ref('')
 const form = ref({
   name: '',
   provider: 'openai',
@@ -175,6 +264,13 @@ const columns = computed<ColumnDef<ModelConfig>[]>(() => [
           ),
           h(PopoverContent, { align: 'end', class: 'w-[160px]' }, () => [
             h('div', { class: 'flex flex-col gap-1' }, [
+              h(Button, {
+                size: 'sm',
+                variant: 'ghost',
+                class: 'justify-start w-full',
+                disabled: testingId.value === row.original.id,
+                onClick: () => handleTest(row.original)
+              }, testingId.value === row.original.id ? '测试中...' : '测试'),
               h(Button, {
                 size: 'sm',
                 variant: 'ghost',
@@ -267,6 +363,82 @@ async function removeModel(model: ModelConfig) {
     alert('删除失败')
   }
 }
+
+function generateCurlCommand(model: ModelConfig): string {
+  const baseUrlClean = model.baseUrl.replace(/\/$/, '')
+  const url = `${baseUrlClean}/chat/completions`
+  const payload = {
+    model: model.model,
+      messages: [
+      {
+        role: 'user',
+        content: 'who are you'
+      }
+    ],
+    stream: false,
+    max_tokens: 5
+  }
+
+  // 将 JSON 转换为单行字符串，用于 curl 命令
+  const payloadStr = JSON.stringify(payload).replace(/'/g, "'\\''")
+
+  return `curl ${url} \\
+  -H "Content-Type: application/json" \\
+  -H "Authorization: Bearer ${model.apiKey || 'YOUR_API_KEY'}" \\
+  -d '${payloadStr}'`
+}
+
+async function performTest(model: ModelConfig) {
+  try {
+    testLoading.value = true
+    testResponse.value = null
+    testSuccess.value = null
+
+    // 构建后端测试 API 请求信息
+    const apiBase = '/api'
+    const backendUrl = `${apiBase}/models/${model.id}/test`
+    testRequest.value = {
+      backend: {
+        method: 'POST',
+        url: backendUrl,
+        headers: {
+          'Content-Type': 'application/json'
+        },
+        body: null
+      }
+    }
+
+    // 生成 curl 命令
+    curlCommand.value = generateCurlCommand(model)
+
+    const result = await testModel(model.id)
+    testResponse.value = result
+    testSuccess.value = !!result.ok
+  } catch (error) {
+    console.error('Failed to test model:', error)
+    const errorMessage = (error as Error)?.message || '测试失败'
+    testResponse.value = { ok: false, message: errorMessage }
+    testSuccess.value = false
+  } finally {
+    testLoading.value = false
+  }
+}
+
+async function handleTest(model: ModelConfig) {
+  testingId.value = model.id
+  testingModel.value = model
+  showTestDialog.value = true
+  await performTest(model)
+  testingId.value = null
+}
+
+async function retryTest() {
+  if (!testingModel.value) return
+  testingId.value = testingModel.value.id
+  await performTest(testingModel.value)
+  testingId.value = null
+}
+
 
 onMounted(() => {
   loadModels()
