@@ -85,6 +85,15 @@ export class BaseProvider {
     throw new Error('getRequestStats() must be implemented')
   }
 
+  // ========== 报告任务（ReportTask）==========
+  async readReportTasks() {
+    throw new Error('readReportTasks() must be implemented')
+  }
+
+  async upsertReportTask(task) {
+    throw new Error('upsertReportTask() must be implemented')
+  }
+
   /**
    * 初始化 Provider（如果需要）
    */

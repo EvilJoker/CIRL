@@ -462,15 +462,51 @@ export async function generateAppReport(data: {
   modelId: string
   startDate: string
   endDate: string
-  topQuestions?: { question: string; count: number }[]
-  sampleRecords?: { id: string; question: string; answer: string; createdAt: string }[]
-}): Promise<{ markdown: string }> {
+  prompt?: string
+  qaRecords?: {
+    id: string
+    question: string
+    answer: string
+    createdAt: string
+    modelId?: string
+  }[]
+  taskId?: string
+  appName?: string
+  modelName?: string
+}): Promise<{ markdown: string; task?: ReportTask }> {
   const res = await fetch(`${API_BASE}/reports/app`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(data)
   })
-  if (!res.ok) throw new Error('Failed to generate app report')
+  if (!res.ok) {
+    const errText = await res.text().catch(() => '')
+    throw new Error(errText || 'Failed to generate app report')
+  }
   const result = await res.json()
-  return { markdown: result.markdown || result.data?.markdown || '' }
+  return { markdown: result.markdown || result.data?.markdown || '', task: result.task }
+}
+
+export interface ReportTask {
+  id: string
+  appId: string
+  appName?: string
+  modelId: string
+  modelName?: string
+  startDate?: string
+  endDate?: string
+  status: 'pending' | 'running' | 'done' | 'failed'
+  markdown?: string | null
+  error?: string | null
+  prompt?: string | null
+  qaCount?: number | null
+  createdAt: string
+  updatedAt: string
+}
+
+export async function fetchReportTasks(): Promise<ReportTask[]> {
+  const res = await fetch(`${API_BASE}/report-tasks`)
+  if (!res.ok) throw new Error('Failed to fetch report tasks')
+  const result = await res.json()
+  return result.data || []
 }

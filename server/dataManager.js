@@ -109,3 +109,20 @@ export async function getRequestStats(appIds = []) {
   }
   return p.getRequestStats(appIds)
 }
+
+// ========== 报告任务（ReportTask）==========
+export async function readReportTasks() {
+  const p = await getProviderInstance()
+  if (typeof p.readReportTasks !== 'function') {
+    return []
+  }
+  return p.readReportTasks()
+}
+
+export async function upsertReportTask(task) {
+  const p = await getProviderInstance()
+  if (typeof p.upsertReportTask !== 'function') {
+    throw new Error('Current provider does not implement upsertReportTask')
+  }
+  return p.upsertReportTask(task)
+}

@@ -57,9 +57,17 @@
         </div>
 
         <div class="flex items-end">
-          <Button class="w-full" :disabled="!canGenerate" @click="handleGenerate">
-            {{ generating ? '生成中...' : '一键生成报告' }}
-          </Button>
+          <div class="flex flex-wrap gap-2 w-full justify-end">
+            <Button variant="outline" :disabled="!canGenerate" @click="loadRecords">
+              刷新数据
+            </Button>
+            <Button variant="secondary" :disabled="!canGenerate" @click="showPromptDialog = true">
+              提示词配置
+            </Button>
+            <Button :disabled="!canGenerate" @click="handleGenerate">
+              {{ generating ? '生成中...' : '一键生成报告' }}
+            </Button>
+          </div>
         </div>
       </div>
       <p v-if="rangeError" class="text-sm text-destructive">{{ rangeError }}</p>
@@ -73,7 +81,12 @@
     <Card class="p-5 space-y-4">
       <div class="flex items-center justify-between">
         <h3 class="text-lg font-semibold">报告任务</h3>
-        <span class="text-xs text-muted-foreground">点击任务查看 Markdown 结果</span>
+        <div class="flex items-center gap-3">
+          <span class="text-xs text-muted-foreground">点击任务查看 Markdown 结果</span>
+          <Button variant="outline" size="sm" :disabled="!records.length" @click="exportQA">
+            导出 QA 记录
+          </Button>
+        </div>
       </div>
       <div class="overflow-x-auto">
         <Table>
@@ -105,7 +118,7 @@
                 <Badge :variant="badgeVariant(task.status)">{{ statusLabel(task.status) }}</Badge>
               </TableCell>
               <TableCell class="text-xs text-muted-foreground">{{ formatDate(task.createdAt) }}</TableCell>
-              <TableCell>
+              <TableCell class="flex flex-wrap gap-2">
                 <Button
                   size="sm"
                   variant="outline"
@@ -114,62 +127,14 @@
                 >
                   查看报告
                 </Button>
-              </TableCell>
-            </TableRow>
-          </TableBody>
-        </Table>
-      </div>
-    </Card>
-
-    <Card class="p-5 space-y-3">
-      <div class="flex items-center justify-between">
-        <h3 class="text-lg font-semibold">高频问题（Top 5）</h3>
-        <span class="text-xs text-muted-foreground">基于当前筛选的 QA 记录</span>
-      </div>
-      <ol class="list-decimal list-inside space-y-2" v-if="topQuestions.length">
-        <li v-for="item in topQuestions" :key="item.question" class="space-y-1">
-          <div class="flex items-center justify-between">
-            <span class="font-medium">{{ item.question }}</span>
-            <span class="text-xs text-muted-foreground">出现 {{ item.count }} 次</span>
-          </div>
-          <p class="text-xs text-muted-foreground line-clamp-2">示例回答：{{ item.sampleAnswer || '—' }}</p>
-        </li>
-      </ol>
-      <p v-else class="text-sm text-muted-foreground">暂无数据，请调整时间范围或选择应用。</p>
-    </Card>
-
-    <Card class="p-5 space-y-3">
-      <div class="flex items-center justify-between">
-        <h3 class="text-lg font-semibold">QA 记录</h3>
-        <span class="text-xs text-muted-foreground">展示近 {{ records.length }} 条</span>
-      </div>
-      <div v-if="loadingRecords" class="text-center py-4 text-muted-foreground">加载中...</div>
-      <div v-else class="overflow-x-auto">
-        <Table>
-          <TableHeader>
-            <TableRow>
-              <TableHead class="w-[150px]">时间</TableHead>
-              <TableHead class="w-[260px]">问题</TableHead>
-              <TableHead>回答</TableHead>
-              <TableHead class="w-[140px]">模型</TableHead>
-            </TableRow>
-          </TableHeader>
-          <TableBody>
-            <TableRow v-if="records.length === 0">
-              <TableCell :colspan="4" class="h-16 text-center text-muted-foreground">暂无记录</TableCell>
-            </TableRow>
-            <TableRow v-for="record in records" :key="record.id">
-              <TableCell class="align-top text-xs text-muted-foreground">
-                {{ formatDate(record.createdAt) }}
-              </TableCell>
-              <TableCell class="align-top text-sm font-medium">
-                <div class="line-clamp-3">{{ record.input }}</div>
-              </TableCell>
-              <TableCell class="align-top text-sm text-muted-foreground">
-                <div class="line-clamp-3">{{ record.output }}</div>
-              </TableCell>
-              <TableCell class="align-top text-xs text-muted-foreground">
-                {{ record.modelId || '—' }}
+                <Button
+                  size="sm"
+                  variant="outline"
+                  :disabled="!records.length"
+                  @click="exportQA"
+                >
+                  导出 QA 记录
+                </Button>
               </TableCell>
             </TableRow>
           </TableBody>
@@ -186,6 +151,28 @@
         <div class="max-h-[65vh] overflow-auto prose max-w-none" v-html="renderedReport" />
         <DialogFooter>
           <Button variant="outline" @click="showReportDialog = false">关闭</Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+
+    <Dialog :open="showPromptDialog" @update:open="showPromptDialog = $event">
+      <DialogContent class="max-w-2xl">
+        <DialogHeader>
+          <DialogTitle>提示词配置</DialogTitle>
+          <DialogDescription>配置生成报告的提示词，支持带入当前 QA 记录。</DialogDescription>
+        </DialogHeader>
+        <div class="space-y-2">
+          <label class="text-sm font-medium">提示词</label>
+          <textarea
+            v-model="promptTemplate"
+            class="w-full min-h-[200px] rounded-md border px-3 py-2 text-sm"
+            placeholder="请输入用于生成报告的提示词"
+          />
+          <p class="text-xs text-muted-foreground">生成时会把当前筛选的 QA 记录作为上下文注入。</p>
+        </div>
+        <DialogFooter class="gap-2">
+          <Button variant="outline" @click="showPromptDialog = false">取消</Button>
+          <Button @click="showPromptDialog = false">保存</Button>
         </DialogFooter>
       </DialogContent>
     </Dialog>
@@ -215,26 +202,19 @@ import {
 } from '@/components/ui/table'
 import { Badge } from '@/components/ui/badge'
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog'
-import { fetchApps, fetchModels, fetchQueryRecords, generateAppReport } from '@/lib/api'
+import {
+  fetchApps,
+  fetchModels,
+  fetchQueryRecords,
+  fetchReportTasks,
+  generateAppReport,
+  type ReportTask
+} from '@/lib/api'
 import { formatDate } from '@/lib/utils'
 import type { App, ModelConfig, QueryRecord } from '@/types'
 
 type Range = '24h' | '7d' | '30d' | 'custom'
 type TaskStatus = 'pending' | 'running' | 'done' | 'failed'
-
-interface ReportTask {
-  id: string
-  appId: string
-  appName: string
-  modelId: string
-  modelName: string
-  startDate: string
-  endDate: string
-  status: TaskStatus
-  createdAt: string
-  markdown?: string
-  error?: string
-}
 
 const apps = ref<App[]>([])
 const models = ref<ModelConfig[]>([])
@@ -253,6 +233,10 @@ const rangeError = ref('')
 
 const showReportDialog = ref(false)
 const activeTask = ref<ReportTask | null>(null)
+const showPromptDialog = ref(false)
+const promptTemplate = ref(
+  '请基于以下 QA 记录生成一份结构化的应用优化报告，包含：高频问题、回答质量评估、改进建议与行动项、模型或知识库优化建议、风险与注意事项。保持条理清晰、可执行。'
+)
 
 const selectedModelLabel = computed(() => {
   const model = models.value.find(item => item.id === selectedModelId.value)
@@ -260,25 +244,6 @@ const selectedModelLabel = computed(() => {
 })
 
 const totalRecords = computed(() => records.value.length)
-
-const topQuestions = computed(() => {
-  const map: Record<string, { question: string; count: number; sampleAnswer: string }> = {}
-  records.value.forEach(record => {
-    const question = (record.input || '').trim()
-    if (!question) return
-    if (!map[question]) {
-      map[question] = {
-        question,
-        count: 0,
-        sampleAnswer: record.output || ''
-      }
-    }
-    map[question].count += 1
-  })
-  return Object.values(map)
-    .sort((a, b) => b.count - a.count)
-    .slice(0, 5)
-})
 
 const canGenerate = computed(() => {
   if (!selectedAppId.value || !selectedModelId.value || generating.value) return false
@@ -308,7 +273,7 @@ watch(selectedAppId, () => {
 })
 
 async function init() {
-  await Promise.all([loadApps(), loadModels()])
+  await Promise.all([loadApps(), loadModels(), loadTasks()])
   if (apps.value.length > 0 && !selectedAppId.value) {
     selectedAppId.value = apps.value[0].id
   }
@@ -347,6 +312,14 @@ async function loadModels() {
     models.value = await fetchModels()
   } catch (error) {
     console.error('Failed to load models:', error)
+  }
+}
+
+async function loadTasks() {
+  try {
+    tasks.value = await fetchReportTasks()
+  } catch (error) {
+    console.error('Failed to load report tasks:', error)
   }
 }
 
@@ -406,10 +379,33 @@ function getModelName(modelId: string) {
   return model ? `${model.name} · ${model.model}` : modelId
 }
 
+function exportQA() {
+  if (!records.value.length) return
+  const header = ['id', 'appId', 'question', 'answer', 'modelId', 'createdAt']
+  const rows = records.value.map(r => [
+    r.id,
+    r.appId,
+    `"${(r.input || '').replace(/"/g, '""')}"`,
+    `"${(r.output || '').replace(/"/g, '""')}"`,
+    r.modelId || '',
+    r.createdAt || ''
+  ])
+  const csv = [header.join(','), ...rows.map(r => r.join(','))].join('\n')
+  const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' })
+  const url = URL.createObjectURL(blob)
+  const a = document.createElement('a')
+  a.href = url
+  a.download = `qa_records_${selectedAppId.value || 'all'}_${startDate.value}_${endDate.value}.csv`
+  a.click()
+  URL.revokeObjectURL(url)
+}
+
 async function handleGenerate() {
   if (!canGenerate.value) return
+  const nowIso = new Date().toISOString()
+  const taskId = `task-${Date.now()}`
   const task: ReportTask = {
-    id: `task-${Date.now()}`,
+    id: taskId,
     appId: selectedAppId.value,
     appName: getAppName(selectedAppId.value),
     modelId: selectedModelId.value,
@@ -417,36 +413,46 @@ async function handleGenerate() {
     startDate: startDate.value,
     endDate: endDate.value,
     status: 'running',
-    createdAt: new Date().toISOString()
+    createdAt: nowIso,
+    updatedAt: nowIso
   }
   tasks.value = [task, ...tasks.value]
   generating.value = true
 
   try {
     const res = await generateAppReport({
+      taskId,
       appId: task.appId,
+      appName: task.appName,
       modelId: task.modelId,
-      startDate: task.startDate,
-      endDate: task.endDate,
-      topQuestions: topQuestions.value.map(item => ({
-        question: item.question,
-        count: item.count
-      })),
-      sampleRecords: records.value.slice(0, 20).map(item => ({
+      modelName: task.modelName,
+      startDate: task.startDate!,
+      endDate: task.endDate!,
+      prompt: promptTemplate.value,
+      qaRecords: records.value.map(item => ({
         id: item.id,
         question: item.input,
         answer: item.output,
-        createdAt: item.createdAt
+        createdAt: item.createdAt,
+        modelId: item.modelId
       }))
     })
-    task.markdown = res.markdown || ''
-    task.status = 'done'
-    activeTask.value = task
+
+    const mergedTask: ReportTask = {
+      ...task,
+      ...(res.task || {}),
+      markdown: res.task?.markdown ?? res.markdown,
+      status: res.task?.status || 'done',
+      updatedAt: res.task?.updatedAt || new Date().toISOString()
+    }
+    tasks.value = tasks.value.map(t => (t.id === taskId ? mergedTask : t))
+    activeTask.value = mergedTask
     showReportDialog.value = true
   } catch (error) {
     console.error('Failed to generate report:', error)
     task.status = 'failed'
     task.error = '生成失败，请稍后重试'
+    tasks.value = tasks.value.map(t => (t.id === taskId ? task : t))
   } finally {
     generating.value = false
     tasks.value = [...tasks.value]

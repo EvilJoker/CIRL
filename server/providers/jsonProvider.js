@@ -259,6 +259,25 @@ export class JsonProvider extends BaseProvider {
 
     return result
   }
+
+  // ========== 报告任务（ReportTask）==========
+  async readReportTasks() {
+    return readJSONFile('report-tasks.json')
+  }
+
+  async upsertReportTask(task) {
+    const tasks = await this.readReportTasks()
+    const idx = tasks.findIndex(t => t.id === task.id)
+    if (idx >= 0) {
+      tasks[idx] = task
+    } else {
+      tasks.unshift(task)
+    }
+    // 限制体积，保留最近 200 条
+    const trimmed = tasks.slice(0, 200)
+    await saveJSONFile('report-tasks.json', trimmed)
+    return task
+  }
 }
 
 

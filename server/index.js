@@ -23,12 +23,221 @@ import {
   saveOptimizationSuggestions,
   readModels,
   saveModels,
-  getRequestStats
+  getRequestStats,
+  readReportTasks,
+  upsertReportTask
 } from './dataManager.js'
 import { calculateSimilarity, getMatchType } from './similarityService.js'
 import { calculateEvaluationMetrics } from './evaluationService.js'
 import { swaggerSpec } from './swagger.js'
 import { logger, closeLogger } from './logger.js'
+
+// 构建报告提示词，将 QA 记录作为上下文注入
+function buildReportPrompt({ prompt, qaRecords = [] }) {
+  const basePrompt =
+    prompt ||
+    '你是应用优化分析助手，请基于提供的 QA 记录生成一份 Markdown 报告，包含：高频问题、回答质量评估、改进建议与行动项、模型或知识库优化建议、风险与注意事项，保持条理清晰、可执行。'
+
+  const qaText = qaRecords
+    .slice(0, 80) // 防止上下文过长
+    .map((r, idx) => {
+      const q = (r.question || '').replace(/\n/g, ' ')
+      const a = (r.answer || '').replace(/\n/g, ' ')
+      return `${idx + 1}. Q: ${q}\n   A: ${a}\n   Time: ${r.createdAt || ''}\n   Model: ${r.modelId || ''}`
+    })
+    .join('\n')
+
+  return `${basePrompt}
+
+以下是近期的 QA 记录（问答对与时间、模型信息），请结合这些信息生成报告：
+${qaText || '无记录'}`
+}
+
+// 全局超时配置（默认 120s，可通过环境变量 REQUEST_TIMEOUT_MS 覆盖）
+const REQUEST_TIMEOUT_MS = parseInt(process.env.REQUEST_TIMEOUT_MS || '120000', 10)
+
+// 调用模型生成报告内容（OpenAI 兼容），支持代理，并输出上游状态与片段
+async function generateReportWithModel({ modelConfig, prompt }) {
+  const baseUrlClean = modelConfig.baseUrl.replace(/\/$/, '')
+  const url = `${baseUrlClean}/chat/completions`
+  const payload = {
+    model: modelConfig.model,
+    messages: [{ role: 'user', content: prompt }],
+    stream: false,
+    max_tokens: 800
+  }
+
+  const urlObj = new URL(url)
+  const proxyUrl =
+    process.env.HTTPS_PROXY ||
+    process.env.HTTP_PROXY ||
+    process.env.https_proxy ||
+    process.env.http_proxy
+
+  const doRequest = () =>
+    new Promise((resolve, reject) => {
+      const options = {
+        hostname: urlObj.hostname,
+        port: urlObj.port || (urlObj.protocol === 'https:' ? 443 : 80),
+        path: urlObj.pathname + urlObj.search,
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${modelConfig.apiKey}`
+        },
+        timeout: REQUEST_TIMEOUT_MS
+      }
+
+      const client = urlObj.protocol === 'https:' ? https : http
+      const req = client.request(options, res => {
+        let data = ''
+        res.on('data', chunk => {
+          data += chunk
+        })
+        res.on('end', () => {
+          if (res.statusCode >= 200 && res.statusCode < 300) {
+            try {
+              const json = JSON.parse(data)
+              resolve({ ok: true, data: json, status: res.statusCode })
+            } catch (e) {
+              resolve({ ok: false, message: '响应解析失败', data })
+            }
+          } else {
+            try {
+              const errJson = JSON.parse(data)
+              resolve({
+                ok: false,
+                message: errJson.error?.message || errJson.message || `HTTP ${res.statusCode}`,
+                data: errJson
+              })
+            } catch {
+              resolve({ ok: false, message: `HTTP ${res.statusCode}`, data })
+            }
+          }
+        })
+      })
+
+      req.on('error', err => reject(err))
+      req.on('timeout', () => {
+        req.destroy()
+        reject(new Error('请求超时'))
+      })
+      req.write(JSON.stringify(payload))
+      req.end()
+    })
+
+  // 代理场景（HTTPS 通过 CONNECT）
+  const doProxyRequest = () =>
+    new Promise((resolve, reject) => {
+      const proxy = new URL(proxyUrl)
+      const connectOptions = {
+        hostname: proxy.hostname,
+        port: proxy.port || 80,
+        method: 'CONNECT',
+        path: `${urlObj.hostname}:${urlObj.port || 443}`,
+        timeout: REQUEST_TIMEOUT_MS
+      }
+
+      const connectReq = http.request(connectOptions)
+      connectReq.on('connect', (res, socket) => {
+        if (res.statusCode !== 200) {
+          reject(new Error(`代理连接失败: HTTP ${res.statusCode}`))
+          return
+        }
+
+        const httpsOptions = {
+          hostname: urlObj.hostname,
+          port: urlObj.port || 443,
+          path: urlObj.pathname + urlObj.search,
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            Authorization: `Bearer ${modelConfig.apiKey}`
+          },
+          socket,
+          agent: false,
+          timeout: REQUEST_TIMEOUT_MS
+        }
+
+        const httpsReq = https.request(httpsOptions, response => {
+          let data = ''
+          response.on('data', chunk => {
+            data += chunk
+          })
+          response.on('end', () => {
+            if (response.statusCode >= 200 && response.statusCode < 300) {
+              try {
+                const json = JSON.parse(data)
+                resolve({ ok: true, data: json, status: response.statusCode })
+              } catch (e) {
+                resolve({ ok: false, message: '响应解析失败', data })
+              }
+            } else {
+              try {
+                const errJson = JSON.parse(data)
+                resolve({
+                  ok: false,
+                  message: errJson.error?.message || errJson.message || `HTTP ${response.statusCode}`,
+                  data: errJson
+                })
+              } catch {
+                resolve({ ok: false, message: `HTTP ${response.statusCode}`, data })
+              }
+            }
+          })
+        })
+
+        httpsReq.on('error', err => reject(err))
+        httpsReq.on('timeout', () => {
+          httpsReq.destroy()
+          reject(new Error('请求超时'))
+        })
+        httpsReq.write(JSON.stringify(payload))
+        httpsReq.end()
+      })
+
+      connectReq.on('error', err => reject(err))
+      connectReq.on('timeout', () => {
+        connectReq.destroy()
+        reject(new Error('代理连接超时'))
+      })
+      connectReq.end()
+    })
+
+  let result
+  try {
+    if (proxyUrl && urlObj.protocol === 'https:') {
+      logger.debug(`报告生成使用代理: ${proxyUrl}`)
+      result = await doProxyRequest()
+    } else {
+      result = await doRequest()
+    }
+  } catch (err) {
+    throw new Error(`请求模型接口失败: ${err.message || err}`)
+  }
+
+  if (!result.ok) {
+    const snippet =
+      typeof result.data === 'string'
+        ? result.data.slice(0, 500)
+        : result.data
+        ? JSON.stringify(result.data).slice(0, 500)
+        : ''
+    const statusText = result.status ? `HTTP ${result.status}` : 'HTTP ?'
+    const errMsg = `${statusText} | ${result.message || '模型生成失败'}${snippet ? ` | 片段: ${snippet}` : ''}`
+    const err = new Error(errMsg)
+    // 附加便于日志的字段
+    err.status = result.status
+    err.responseSnippet = snippet
+    throw err
+  }
+
+  const content = result.data?.choices?.[0]?.message?.content
+  if (!content) {
+    throw new Error('模型未返回内容')
+  }
+  return { markdown: content, raw: result.data }
+}
 
 const __filename = fileURLToPath(import.meta.url)
 const __dirname = dirname(__filename)
@@ -2287,6 +2496,127 @@ app.post('/api/models/:id/test', async (req, res) => {
       ok: false,
       message: error.message || '测试失败'
     })
+  }
+})
+
+// ========== 报告生成 ==========
+app.post('/api/reports/app', async (req, res) => {
+  try {
+    const { appId, modelId, startDate, endDate, prompt, qaRecords, taskId } = req.body || {}
+    if (!appId || !startDate || !endDate || !modelId) {
+      return res.status(400).json({ error: 'appId, modelId, startDate, endDate are required' })
+    }
+
+    // 读取模型配置
+    const models = await readModels()
+    const model = models.find(m => m.id === modelId)
+    if (!model) {
+      return res.status(404).json({ error: 'Model not found' })
+    }
+    if (!model.baseUrl || !model.apiKey || !model.model) {
+      return res.status(400).json({ error: '模型配置不完整，缺少 baseUrl/apiKey/model' })
+    }
+
+    const qaList = Array.isArray(qaRecords) ? qaRecords : []
+    const promptText = buildReportPrompt({ prompt, qaRecords: qaList })
+
+    const task = {
+      id: taskId || `task-${Date.now()}`,
+      appId,
+      appName: undefined,
+      modelId,
+      modelName: model.name || model.model,
+      startDate,
+      endDate,
+      status: 'running',
+      markdown: null,
+      error: null,
+      prompt: promptText,
+      qaCount: qaList.length,
+      data: null,
+      createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString()
+    }
+
+    // 尝试补全 app 名称
+    try {
+      const apps = await readApps()
+      const appItem = apps.find(a => a.id === appId)
+      if (appItem) {
+        task.appName = appItem.name
+      }
+    } catch (e) {
+      logger.warn('读取应用名称失败，继续生成报告', e?.message || e)
+    }
+
+    await upsertReportTask(task)
+
+    const startTs = Date.now()
+    logger.info(
+      `开始生成应用报告: app=${appId}, model=${modelId}, range=${startDate}~${endDate}, qa=${qaList.length}, promptLen=${promptText.length}`
+    )
+
+    // 调用模型生成报告
+    const result = await generateReportWithModel({ modelConfig: model, prompt: promptText })
+
+    task.status = 'done'
+    task.markdown = result.markdown
+    task.error = null
+    task.data = result.raw
+    task.updatedAt = new Date().toISOString()
+    await upsertReportTask(task)
+
+    logger.info(
+      `生成应用报告成功: ${appId} (${startDate} ~ ${endDate}), 模型: ${model.name || model.model}, QA: ${qaList.length}, 耗时: ${Date.now() - startTs}ms`
+    )
+    res.json({ markdown: result.markdown, data: result.raw, task })
+  } catch (error) {
+    try {
+      // 如果 taskId 传入，更新为失败状态
+      const failTask = {
+        id: req.body?.taskId || `task-${Date.now()}`,
+        appId: req.body?.appId,
+        modelId: req.body?.modelId,
+        startDate: req.body?.startDate,
+        endDate: req.body?.endDate,
+        status: 'failed',
+        markdown: null,
+        error: error?.message || '生成失败',
+        prompt: req.body?.prompt,
+        qaCount: Array.isArray(req.body?.qaRecords) ? req.body.qaRecords.length : undefined,
+        data: error?.data || null,
+        createdAt: new Date().toISOString(),
+        updatedAt: new Date().toISOString()
+      }
+      await upsertReportTask(failTask)
+    } catch (e) {
+      logger.warn('写入失败任务记录时出错:', e?.message || e)
+    }
+
+    logger.error(
+      '生成应用报告失败:',
+      error?.message || error,
+      error?.status ? `status=${error.status}` : '',
+      error?.responseSnippet ? `snippet=${error.responseSnippet}` : '',
+      error?.stack || ''
+    )
+    res.status(500).json({
+      error: error.message || 'Failed to generate report',
+      detail: error.stack || null,
+      snippet: error.responseSnippet || null,
+      status: error.status || null
+    })
+  }
+})
+
+// 报告任务列表
+app.get('/api/report-tasks', async (req, res) => {
+  try {
+    const tasks = await readReportTasks()
+    res.json({ data: tasks })
+  } catch (error) {
+    logger.error('获取报告任务列表失败:', error)
+    res.status(500).json({ error: error.message || 'Failed to fetch report tasks' })
   }
 })
 

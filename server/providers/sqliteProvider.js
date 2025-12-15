@@ -103,7 +103,9 @@ export class SqliteProvider extends BaseProvider {
     // 启用外键约束
     this.db.run('PRAGMA foreign_keys = ON')
 
+    // 确保新增表/迁移
     this.ensureModelsTable()
+    this.ensureReportTasksTable()
 
     // 检查表是否存在，如果不存在则初始化 schema
     const tablesExist = this.checkTablesExist()
@@ -330,6 +332,7 @@ export class SqliteProvider extends BaseProvider {
     this.db.run(`CREATE INDEX IF NOT EXISTS idx_optimization_suggestions_source ON optimization_suggestions(source)`)
 
     this.ensureModelsTable()
+    this.ensureReportTasksTable()
   }
 
   ensureModelsTable() {
@@ -347,6 +350,30 @@ export class SqliteProvider extends BaseProvider {
         updated_at TEXT NOT NULL
       )
     `)
+  }
+
+  ensureReportTasksTable() {
+    if (!this.db) return
+    this.db.run(`
+      CREATE TABLE IF NOT EXISTS report_tasks (
+        id TEXT PRIMARY KEY,
+        app_id TEXT NOT NULL,
+        app_name TEXT,
+        model_id TEXT NOT NULL,
+        model_name TEXT,
+        start_date TEXT,
+        end_date TEXT,
+        status TEXT NOT NULL,
+        markdown TEXT,
+        error TEXT,
+        prompt TEXT,
+        qa_count INTEGER,
+        data TEXT,
+        created_at TEXT NOT NULL,
+        updated_at TEXT NOT NULL
+      )
+    `)
+    this.db.run(`CREATE INDEX IF NOT EXISTS idx_report_tasks_created_at ON report_tasks(created_at DESC)`)
   }
 
   // ========== 辅助函数 ==========
@@ -975,6 +1002,81 @@ export class SqliteProvider extends BaseProvider {
     }
 
     this.executeBatch(operations)
+  }
+
+  // ========== 报告任务（ReportTask）==========
+  async readReportTasks() {
+    await this.ensureInitialized()
+    const rows = this.queryAll(
+      `SELECT * FROM report_tasks ORDER BY datetime(created_at) DESC, id DESC LIMIT 200`
+    )
+    return rows.map(row => ({
+      id: row.id,
+      appId: row.app_id,
+      appName: row.app_name || undefined,
+      modelId: row.model_id,
+      modelName: row.model_name || undefined,
+      startDate: row.start_date || undefined,
+      endDate: row.end_date || undefined,
+      status: row.status,
+      markdown: row.markdown || undefined,
+      error: row.error || undefined,
+      prompt: row.prompt || undefined,
+      qaCount: row.qa_count || undefined,
+      data: this.deserializeJSON(row.data),
+      createdAt: row.created_at,
+      updatedAt: row.updated_at
+    }))
+  }
+
+  async upsertReportTask(task) {
+    await this.ensureInitialized()
+    const now = new Date().toISOString()
+    const record = {
+      ...task,
+      createdAt: task.createdAt || now,
+      updatedAt: now
+    }
+
+    this.execute(
+      `INSERT INTO report_tasks (
+        id, app_id, app_name, model_id, model_name, start_date, end_date, status, markdown, error, prompt, qa_count, data, created_at, updated_at
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+      ON CONFLICT(id) DO UPDATE SET
+        app_id = excluded.app_id,
+        app_name = excluded.app_name,
+        model_id = excluded.model_id,
+        model_name = excluded.model_name,
+        start_date = excluded.start_date,
+        end_date = excluded.end_date,
+        status = excluded.status,
+        markdown = excluded.markdown,
+        error = excluded.error,
+        prompt = excluded.prompt,
+        qa_count = excluded.qa_count,
+        data = excluded.data,
+        created_at = excluded.created_at,
+        updated_at = excluded.updated_at
+      `,
+      [
+        record.id,
+        record.appId,
+        record.appName || null,
+        record.modelId,
+        record.modelName || null,
+        record.startDate || null,
+        record.endDate || null,
+        record.status,
+        record.markdown || null,
+        record.error || null,
+        record.prompt || null,
+        record.qaCount || null,
+        this.serializeJSON(record.data),
+        record.createdAt,
+        record.updatedAt
+      ]
+    )
+    return record
   }
 
   // ========== 统计（Stats）==========
