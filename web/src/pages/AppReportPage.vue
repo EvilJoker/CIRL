@@ -143,12 +143,37 @@
     </Card>
 
     <Dialog :open="showReportDialog" @update:open="showReportDialog = $event">
-      <DialogContent class="max-w-4xl max-h-[85vh]">
-        <DialogHeader>
-          <DialogTitle>报告内容</DialogTitle>
-          <DialogDescription>任务：{{ activeTask?.id }} · 模型：{{ activeTask?.modelName }}</DialogDescription>
+      <DialogContent
+        :class="[
+          'transition-all',
+          reportFullScreen
+            ? 'w-screen h-[96vh] max-w-none sm:max-w-none max-h-none rounded-none left-0 right-0 translate-x-0 translate-y-0 top-0 bottom-0 m-0'
+            : 'max-w-4xl max-h-[85vh]'
+        ]"
+      >
+        <DialogHeader class="flex flex-row items-center justify-between gap-2">
+          <div class="space-y-1 text-left">
+            <DialogTitle>报告内容</DialogTitle>
+            <DialogDescription>任务：{{ activeTask?.id }} · 模型：{{ activeTask?.modelName }}</DialogDescription>
+          </div>
+          <div class="flex items-center gap-2">
+            <Button variant="outline" size="icon" @click="reportFullScreen = !reportFullScreen">
+              <component
+                :is="reportFullScreen ? Minimize2Icon : Maximize2Icon"
+                class="w-4 h-4"
+              />
+            </Button>
+          </div>
         </DialogHeader>
-        <div class="max-h-[65vh] overflow-auto prose max-w-none" v-html="renderedReport" />
+        <div
+          :class="[
+            'overflow-auto space-y-3',
+            reportFullScreen ? 'h-[82vh] px-8 pb-6' : 'max-h-[65vh]'
+          ]"
+        >
+          <VMdPreview v-if="activeTask?.markdown" :text="activeTask.markdown" />
+          <div v-else class="text-muted-foreground text-sm">暂无报告内容</div>
+        </div>
         <DialogFooter>
           <Button variant="outline" @click="showReportDialog = false">关闭</Button>
         </DialogFooter>
@@ -181,7 +206,6 @@
 
 <script setup lang="ts">
 import { computed, onMounted, ref, watch } from 'vue'
-import { marked } from 'marked'
 import { Card } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -212,6 +236,16 @@ import {
 } from '@/lib/api'
 import { formatDate } from '@/lib/utils'
 import type { App, ModelConfig, QueryRecord } from '@/types'
+import { Maximize2, Minimize2 } from 'lucide-vue-next'
+import VMdPreview from '@kangc/v-md-editor/lib/preview'
+import githubTheme from '@kangc/v-md-editor/lib/theme/github.js'
+import hljs from 'highlight.js'
+import '@kangc/v-md-editor/lib/style/preview.css'
+import '@kangc/v-md-editor/lib/theme/style/github.css'
+
+VMdPreview.use(githubTheme, {
+  Hljs: hljs
+})
 
 type Range = '24h' | '7d' | '30d' | 'custom'
 type TaskStatus = 'pending' | 'running' | 'done' | 'failed'
@@ -234,6 +268,9 @@ const rangeError = ref('')
 const showReportDialog = ref(false)
 const activeTask = ref<ReportTask | null>(null)
 const showPromptDialog = ref(false)
+const reportFullScreen = ref(false)
+const Maximize2Icon = Maximize2
+const Minimize2Icon = Minimize2
 const promptTemplate = ref(
   '请基于以下 QA 记录生成一份结构化的应用优化报告，包含：高频问题、回答质量评估、改进建议与行动项、模型或知识库优化建议、风险与注意事项。保持条理清晰、可执行。'
 )
@@ -249,11 +286,6 @@ const canGenerate = computed(() => {
   if (!selectedAppId.value || !selectedModelId.value || generating.value) return false
   if (!startDate.value || !endDate.value || rangeError.value) return false
   return true
-})
-
-const renderedReport = computed(() => {
-  if (!activeTask.value?.markdown) return ''
-  return marked.parse(activeTask.value.markdown)
 })
 
 watch(selectedRange, value => {
@@ -462,6 +494,7 @@ async function handleGenerate() {
 function openReport(task: ReportTask) {
   if (!task.markdown) return
   activeTask.value = task
+  reportFullScreen.value = false
   showReportDialog.value = true
 }
 
